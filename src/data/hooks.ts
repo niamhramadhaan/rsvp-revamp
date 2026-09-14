@@ -5,6 +5,7 @@ import { listGuests, listAllGuests } from './guests'
 import { getSeatMapByEvent, listSeats, listSeatGroups } from './seatmaps'
 import { listLayoutBlocks } from './layoutBlocks'
 import { getProfile, updateProfile, PROFILE_KEY } from './profile'
+import { getSessionUser, SESSION_KEY } from './session'
 import {
   listUsers,
   getStaffPermissions,
@@ -125,6 +126,26 @@ export function useAllGuests(): Guest[] {
   }, [])
 
   return guests
+}
+
+// Whoever this browser is signed in as (see session.ts) — null means the
+// login gate owns the screen. Subscribes to both the session key and the
+// users table, so signing in/out (or an admin editing the signed-in row in
+// Settings) re-renders every consumer, same shape as every other hook here.
+export function useSessionUser(): AppUser | null {
+  const [user, setUser] = useState<AppUser | null>(() => getSessionUser())
+
+  useEffect(() => {
+    const load = () => setUser(getSessionUser())
+    const unsubSession = subscribe(SESSION_KEY, load)
+    const unsubUsers = subscribe('users', load)
+    return () => {
+      unsubSession()
+      unsubUsers()
+    }
+  }, [])
+
+  return user
 }
 
 // The one local Profile record (see that type's own doc) — reads

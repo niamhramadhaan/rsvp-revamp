@@ -3,6 +3,7 @@
 // to render instead of empty states on first load.
 import { genId } from './store'
 import type {
+  AppUser,
   Event,
   Guest,
   InviteChannelStatus,
@@ -207,3 +208,27 @@ for (const guest of SEED_GUESTS) {
   const seat = SEED_SEATS.find((s) => s.id === guest.seatId)
   if (seat) seat.status = 'assigned'
 }
+
+// Demo sign-in accounts for the login gate (see session.ts) — one per role,
+// so both the full Admin dashboard and the scoped Staff (check-in only)
+// experience are one login away. Passwords are plaintext mock data, same as
+// every other field in this app (see AppUser's own doc): there is no real
+// auth, this only exists so a reviewer can get past the gate.
+export const SEED_USERS: AppUser[] = [
+  {
+    id: 'usr_admin',
+    name: 'William Jacobson',
+    email: 'admin@gamefinity.id',
+    password: 'admin123',
+    role: 'admin',
+    eventIds: [],
+  },
+  {
+    id: 'usr_staff',
+    name: 'Sinta Maharani',
+    email: 'staff@gamefinity.id',
+    password: 'staff123',
+    role: 'staff',
+    eventIds: [EVENT_1_ID],
+  },
+]

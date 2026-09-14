@@ -1,6 +1,6 @@
 import { clearTable, readTable, readValue, seedIfEmpty, writeTable, writeValue } from './store'
-import { SEED_EVENTS, SEED_SEATMAPS, SEED_SEAT_GROUPS, SEED_SEATS, SEED_GUESTS, SEED_SEAT_SPACING, SEED_VERSION } from './seed'
-import type { Seat, SeatGroup } from './types'
+import { SEED_EVENTS, SEED_SEATMAPS, SEED_SEAT_GROUPS, SEED_SEATS, SEED_GUESTS, SEED_SEAT_SPACING, SEED_VERSION, SEED_USERS } from './seed'
+import type { AppUser, Seat, SeatGroup } from './types'
 
 const SEED_VERSION_KEY = 'seedVersion'
 const SEEDED_TABLES = ['events', 'seatmaps', 'seatGroups', 'seats', 'guests']
@@ -28,7 +28,26 @@ export function initMockData(): void {
   seedIfEmpty('seatGroups', SEED_SEAT_GROUPS)
   seedIfEmpty('seats', SEED_SEATS)
   seedIfEmpty('guests', SEED_GUESTS)
+  // No SEED_VERSION bump for this one: 'users' never existed as a table
+  // before, so seedIfEmpty treats it as genuinely never-seeded on every
+  // browser (fresh or stale) without wiping anyone's events/guests the way
+  // a version bump would.
+  seedIfEmpty('users', SEED_USERS)
+  ensureSeedUsers()
   migrateSchema()
+}
+
+// The demo sign-in accounts have to exist even on browsers whose users table
+// predates them (someone added roster rows in Settings before the login gate
+// shipped) — seedIfEmpty only fires on a never-seeded table, so a table that
+// already exists would silently keep missing them and every demo login would
+// fail with "no account matches". Merges the demo rows in by email when
+// they're absent. Additive-only, never touches existing rows.
+function ensureSeedUsers(): void {
+  const users = readTable<AppUser>('users')
+  const emails = new Set(users.map((u) => u.email.toLowerCase()))
+  const missing = SEED_USERS.filter((u) => !emails.has(u.email.toLowerCase()))
+  if (missing.length > 0) writeTable('users', [...users, ...missing])
 }
 
 // seedIfEmpty only ever runs against a brand-new table, so a browser that
