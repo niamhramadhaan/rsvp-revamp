@@ -68,38 +68,44 @@ export function normalizeInviteCode(value: string): string {
   return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
 }
 
+// What a current-format code looks like on the record ("ABC-12D") —
+// anything else is a pre-redesign token, still matchable (see
+// normalizeInviteCode) but rewritten to this shape by init.ts's own
+// migration, so staff only ever read and type the short form.
+export const INVITE_CODE_RE = /^[A-Z]{3}-[A-Z0-9]{3}$/
+
 // An invitation code derived from who the guest IS, not a random string:
-// three letters off their name, four characters off their phone number
-// (or email, or random when neither exists), plus a check digit that
-// catches single-character typos at manual entry. Stored with dashes
-// ("CHA-7890-D") so staff can read it back in chunks; matching always
-// goes through normalizeInviteCode, so the dashes are cosmetic.
-// `existing` is every token already on this event — on the rare collision
-// (same initials, same phone tail) the middle part re-rolls random until
-// it's unique, keeping the name part personal either way.
+// three letters off their name, two characters off their phone number (or
+// email, or random when neither exists), plus a check digit that catches
+// single-character typos at manual entry. Six characters, all caps, stored
+// with one dash ("ABC-12D") so staff read and type it in two chunks;
+// matching always goes through normalizeInviteCode, so the dash is
+// cosmetic. `existing` is every token already on this event — on the rare
+// collision the middle part re-rolls random until it's unique, keeping the
+// name part personal either way.
 export function generateInviteCode(name: string, wa: string, email: string, existing: Set<string>): string {
   const namePart = (name.toUpperCase().replace(/[^A-Z]/g, '') + 'XXX').slice(0, 3)
 
   const digits = normalizePhone(wa)
   let mid: string
-  if (digits.length >= 4) {
-    mid = digits.slice(-4)
-  } else if (digits.length > 0) {
-    mid = digits.padStart(4, '0')
+  if (digits.length >= 2) {
+    mid = digits.slice(-2)
+  } else if (digits.length === 1) {
+    mid = `0${digits}`
   } else {
-    const local = email.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4)
-    mid = local.length === 4 ? local : (local + randomCodeChars(4)).slice(0, 4)
+    const local = email.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 2)
+    mid = local.length === 2 ? local : (local + randomCodeChars(2)).slice(0, 2)
   }
 
   const build = (midPart: string) => {
     const core = `${namePart}${midPart}`
     const check = codeValueChar([...core].reduce((sum, ch) => sum + codeCharValue(ch), 0) % 36)
-    return `${namePart}-${midPart}-${check}`
+    return `${namePart}-${midPart}${check}`
   }
 
   let code = build(mid)
   while (existing.has(code)) {
-    code = build(randomCodeChars(4))
+    code = build(randomCodeChars(2))
   }
   return code
 }

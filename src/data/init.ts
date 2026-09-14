@@ -1,6 +1,7 @@
 import { clearTable, readTable, readValue, seedIfEmpty, writeTable, writeValue } from './store'
 import { SEED_EVENTS, SEED_SEATMAPS, SEED_SEAT_GROUPS, SEED_SEATS, SEED_GUESTS, SEED_SEAT_SPACING, SEED_VERSION, SEED_USERS } from './seed'
-import type { AppUser, Seat, SeatGroup } from './types'
+import { generateInviteCode, INVITE_CODE_RE } from './guests'
+import type { AppUser, Guest, Seat, SeatGroup } from './types'
 
 const SEED_VERSION_KEY = 'seedVersion'
 const SEEDED_TABLES = ['events', 'seatmaps', 'seatGroups', 'seats', 'guests']
@@ -34,7 +35,32 @@ export function initMockData(): void {
   // a version bump would.
   seedIfEmpty('users', SEED_USERS)
   ensureSeedUsers()
+  migrateInviteCodes()
   migrateSchema()
+}
+
+// Invitation codes used to be long random strings — now they're short
+// name-derived codes (see generateInviteCode), and the check-in gate's own
+// boxes only fit the short form. Rewrites any token that isn't one, keeping
+// already-current tokens untouched (and reserved, so a rewrite can never
+// collide with one). Safe to do blindly: old tokens were never communicated
+// anywhere outside this browser's mock data, so nothing external references
+// them — unlike a version bump, this preserves every guest, seat, and
+// check-in around the rewritten field.
+function migrateInviteCodes(): void {
+  const guests = readTable<Guest>('guests')
+  if (!guests.some((g) => !INVITE_CODE_RE.test(g.token))) return
+  const taken = new Set<string>()
+  for (const g of guests) if (INVITE_CODE_RE.test(g.token)) taken.add(g.token)
+  writeTable<Guest>(
+    'guests',
+    guests.map((g) => {
+      if (INVITE_CODE_RE.test(g.token)) return g
+      const token = generateInviteCode(g.name, g.contact.wa, g.contact.email, taken)
+      taken.add(token)
+      return { ...g, token }
+    })
+  )
 }
 
 // The demo sign-in accounts have to exist even on browsers whose users table

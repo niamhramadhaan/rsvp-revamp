@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, type ClipboardEvent as ReactClipboardEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react'
 import type { Event, Guest, Seat, SeatGroup } from '../../data/types'
 import { checkInGuest, undoCheckIn } from '../../data/checkin'
 import { assignSeat } from '../../data/seating'
@@ -48,15 +48,6 @@ function matchesQuery(guest: Guest, q: string): boolean {
     guest.contact?.wa?.toLowerCase().includes(q) ||
     guest.contact?.email?.toLowerCase().includes(q)
   )
-}
-
-// Groups a raw code keystroke run the way stored codes read — 3 letters,
-// 4 middle characters, then the check tail ("CHA-7890-D"). Dynamic rather
-// than fixed-width so pre-name-code tokens (longer random strings) still
-// format into readable chunks instead of truncating.
-export function formatCodeInput(value: string): string {
-  const raw = normalizeInviteCode(value)
-  return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7)].filter(Boolean).join('-')
 }
 
 // The full scan → resolve → confirm/override/assign-seat/undo flow, in its
@@ -315,20 +306,28 @@ export default function CheckInDrawer({ open, onClose, guests, seats, groups, ev
 // The code gate between finding a guest by name and being allowed to check
 // them in — finding someone is not permission. Bound to THIS guest: the
 // entered code must match their own token, not just any valid code. The
-// input formats itself with dashes as they type (see formatCodeInput), so
-// what staff type mirrors how the code reads on the profile and the
-// printed card.
+// boxes auto-verify the moment the sixth character lands (no separate tap —
+// this is a door flow), one box per character so the shape mirrors the code
+// staff read off the profile and the printed card.
 function InviteCodeGate({ guest, onVerified, onCancel }: { guest: Guest; onVerified: (guest: Guest) => void; onCancel: () => void }) {
   const [code, setCode] = useState('')
   const [error, setError] = useState(false)
+  const verifiedRef = useRef(false)
   const firstName = guest.name.split(' ')[0] || guest.name
 
-  function handleVerify() {
+  useEffect(() => {
+    if (code.length < CODE_LENGTH || verifiedRef.current) return
     if (normalizeInviteCode(code) === normalizeInviteCode(guest.token)) {
+      verifiedRef.current = true
       onVerified(guest)
     } else {
       setError(true)
     }
+  }, [code, guest, onVerified])
+
+  function handleCodeChange(next: string) {
+    setCode(next)
+    setError(false)
   }
 
   return (
@@ -341,40 +340,83 @@ function InviteCodeGate({ guest, onVerified, onCancel }: { guest: Guest; onVerif
         </div>
       </div>
 
-      <input
-        type="text"
-        value={code}
-        onChange={(e) => {
-          setCode(formatCodeInput(e.target.value))
-          setError(false)
-        }}
-        onKeyDown={(e) => {
-          if (e.key === 'Enter') handleVerify()
-        }}
-        placeholder="ABC-1234-D"
-        aria-label={`Invitation code for ${guest.name}`}
-        autoComplete="off"
-        autoCapitalize="characters"
-        spellCheck={false}
-        maxLength={19}
-        className={`mt-4 w-full rounded-xl border-[1.5px] bg-white px-4 py-3 text-center font-mono text-lg font-bold tracking-[0.2em] text-ink-900 uppercase outline-none transition placeholder:font-sans placeholder:text-sm placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-muted/60 focus:ring-4 ${
-          error ? 'border-status-declined focus:ring-status-declined/15' : 'border-black/10 focus:border-accent-700 focus:ring-accent-700/10'
-        }`}
-      />
+      <CodeBoxes value={code} onChange={handleCodeChange} error={error} />
+
       {error && (
         <p role="alert" className="mt-2 text-center text-xs font-medium text-status-declined">
           That code doesn&rsquo;t match {guest.name} — check and try again.
         </p>
       )}
 
-      <div className="mt-3 flex items-center justify-end gap-2">
+      <div className="mt-3 flex justify-center">
         <Button variant="ghost" onClick={onCancel}>
           Not them
         </Button>
-        <Button variant="primary" onClick={handleVerify} disabled={normalizeInviteCode(code).length === 0}>
-          Verify code
-        </Button>
       </div>
+    </div>
+  )
+}
+
+const CODE_LENGTH = 6
+
+// Six boxes, one character each — typing advances, backspace retreats,
+// pasting a whole code fills them left to right. Uppercase alphanumerics
+// only (anything else never survives normalization, so it never enters).
+function CodeBoxes({ value, onChange, error }: { value: string; onChange: (value: string) => void; error: boolean }) {
+  const boxRefs = useRef<(HTMLInputElement | null)[]>([])
+
+  function setChar(i: number, ch: string) {
+    const clean = ch.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(-1)
+    const next = value.split('')
+    while (next.length < CODE_LENGTH) next.push('')
+    next[i] = clean
+    onChange(next.join('').slice(0, CODE_LENGTH))
+    if (clean && i < CODE_LENGTH - 1) boxRefs.current[i + 1]?.focus()
+  }
+
+  function handleKeyDown(i: number, e: ReactKeyboardEvent<HTMLInputElement>) {
+    if (e.key === 'Backspace' && !value[i] && i > 0) {
+      boxRefs.current[i - 1]?.focus()
+      const next = value.split('')
+      while (next.length < CODE_LENGTH) next.push('')
+      next[i - 1] = ''
+      onChange(next.join('').slice(0, CODE_LENGTH))
+    }
+  }
+
+  function handlePaste(e: ReactClipboardEvent<HTMLInputElement>) {
+    e.preventDefault()
+    const pasted = normalizeInviteCode(e.clipboardData.getData('text')).slice(0, CODE_LENGTH)
+    if (!pasted) return
+    onChange(pasted)
+    boxRefs.current[Math.min(pasted.length, CODE_LENGTH - 1)]?.focus()
+  }
+
+  return (
+    <div className="mt-4 flex items-center justify-center gap-1.5 sm:gap-2" role="group" aria-label="Invitation code">
+      {Array.from({ length: CODE_LENGTH }, (_, i) => (
+        <input
+          key={i}
+          ref={(el) => {
+            boxRefs.current[i] = el
+          }}
+          type="text"
+          inputMode="text"
+          autoCapitalize="characters"
+          autoComplete="off"
+          spellCheck={false}
+          maxLength={1}
+          autoFocus={i === 0}
+          aria-label={`Character ${i + 1} of ${CODE_LENGTH}`}
+          value={value[i] ?? ''}
+          onChange={(e) => setChar(i, e.target.value)}
+          onKeyDown={(e) => handleKeyDown(i, e)}
+          onPaste={handlePaste}
+          className={`h-12 w-10 rounded-xl border-[1.5px] bg-white text-center font-mono text-lg font-bold uppercase outline-none transition sm:h-14 sm:w-12 ${
+            error ? 'border-status-declined' : 'border-black/10 focus:border-accent-700 focus:ring-4 focus:ring-accent-700/10'
+          }`}
+        />
+      ))}
     </div>
   )
 }
