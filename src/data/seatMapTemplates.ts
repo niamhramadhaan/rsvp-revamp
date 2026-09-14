@@ -87,7 +87,16 @@ function buildClassroomRows(): { stage: Omit<LayoutBlock, 'id' | 'seatMapId'>; s
   return { stage, seatPositions }
 }
 
-function buildBanquetTables(): { stage: Omit<LayoutBlock, 'id' | 'seatMapId'>; tables: Omit<LayoutBlock, 'id' | 'seatMapId'>[]; seatPositionsByTable: TemplateSeat[][] } {
+export interface BanquetBuild {
+  stage: Omit<LayoutBlock, 'id' | 'seatMapId'>
+  tables: Omit<LayoutBlock, 'id' | 'seatMapId'>[]
+  seatPositionsByTable: TemplateSeat[][]
+}
+
+// Exported for seed.ts — the default (seeded) seat map IS this banquet
+// build, so both go through the exact same geometry rather than the seed
+// hand-rolling a second, slightly-different banquet next to it.
+export function buildBanquetTables(): BanquetBuild {
   const tableWidth = 150
   const tableHeight = 48
   const cols = 3

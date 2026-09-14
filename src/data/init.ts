@@ -1,10 +1,10 @@
 import { clearTable, readTable, readValue, seedIfEmpty, writeTable, writeValue } from './store'
-import { SEED_EVENTS, SEED_SEATMAPS, SEED_SEAT_GROUPS, SEED_SEATS, SEED_GUESTS, SEED_SEAT_SPACING, SEED_VERSION, SEED_USERS } from './seed'
+import { SEED_EVENTS, SEED_SEATMAPS, SEED_SEAT_GROUPS, SEED_SEATS, SEED_GUESTS, SEED_SEAT_SPACING, SEED_VERSION, SEED_USERS, SEED_LAYOUT_BLOCKS } from './seed'
 import { generateInviteCode, INVITE_CODE_RE } from './guests'
 import type { AppUser, Guest, Seat, SeatGroup } from './types'
 
 const SEED_VERSION_KEY = 'seedVersion'
-const SEEDED_TABLES = ['events', 'seatmaps', 'seatGroups', 'seats', 'guests']
+const SEEDED_TABLES = ['events', 'seatmaps', 'seatGroups', 'seats', 'guests', 'layoutBlocks']
 
 // Populates localStorage with mock fixtures the very first time the app
 // loads (leaves everything alone on later loads, including a deliberately
@@ -29,6 +29,7 @@ export function initMockData(): void {
   seedIfEmpty('seatGroups', SEED_SEAT_GROUPS)
   seedIfEmpty('seats', SEED_SEATS)
   seedIfEmpty('guests', SEED_GUESTS)
+  seedIfEmpty('layoutBlocks', SEED_LAYOUT_BLOCKS)
   // No SEED_VERSION bump for this one: 'users' never existed as a table
   // before, so seedIfEmpty treats it as genuinely never-seeded on every
   // browser (fresh or stale) without wiping anyone's events/guests the way
