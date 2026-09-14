@@ -5,17 +5,18 @@ export interface CheckInProgressRingProps {
   total: number
 }
 
-// A 270° gauge, not a plain full ring — a genuinely different chart shape
-// from what this used to be, per a request to get more creative with this
-// widget specifically. The gap at the bottom is the standard speedometer
-// opening (rotate(135deg) around the circle's center, combined with a
-// dasharray that only draws 75% of the circumference — the usual SVG trick
-// for a "3/4 gauge," not a bespoke arc-path computation). The arc's own
-// color sweeps declined-red → pending-amber → confirmed-green along its
-// length (this app's existing status hues, not new ones invented for this),
-// so the color itself communicates urgency the way a real gauge's red zone
-// does, instead of just marking a position. A small pulsing head marker
-// sits at the current value's angle, like a live needle tip.
+// A 270° gauge, not a plain full ring — the gap at the bottom is the
+// standard speedometer opening (rotate(135deg) around the circle's center,
+// combined with a dasharray that only draws 75% of the circumference — the
+// usual SVG trick for a "3/4 gauge," not a bespoke arc-path computation).
+// One solid brand-blue arc on a neutral rail (the same accent-700 +
+// tabular display numerals StatTiles' own hero tile uses for this exact
+// concept at a different zoom level) — deliberately NOT the old
+// declined-red → pending-amber → confirmed-green sweep along its length:
+// those hues mean settled outcomes elsewhere in this app, and painting all
+// three onto one arc claimed three meanings for a single number. A small
+// pulsing head marker sits at the current value's angle, like a live
+// needle tip.
 //
 // Three separate top-level groups (ring, count, remaining), not the ring+
 // count nested together they used to be — flex-wrap lets them spread evenly
@@ -52,13 +53,6 @@ export default function CheckInProgressRing({ checkedIn, total }: CheckInProgres
       <div className={`flex flex-1 flex-wrap items-center justify-between gap-6 rounded-2xl p-5 ${GLASS_CARD}`}>
         <div className="relative flex h-28 w-28 shrink-0 items-center justify-center">
           <svg viewBox="0 0 100 100" className="h-28 w-28">
-            <defs>
-              <linearGradient id="checkinGaugeGradient" x1="0" y1="1" x2="1" y2="0">
-                <stop offset="0%" stopColor="var(--color-status-declined)" />
-                <stop offset="50%" stopColor="var(--color-status-pending)" />
-                <stop offset="100%" stopColor="var(--color-status-confirmed)" />
-              </linearGradient>
-            </defs>
             <g transform="rotate(135 50 50)">
               <circle
                 cx="50"
@@ -75,7 +69,7 @@ export default function CheckInProgressRing({ checkedIn, total }: CheckInProgres
                 cy="50"
                 r={r}
                 fill="none"
-                stroke="url(#checkinGaugeGradient)"
+                stroke="var(--color-accent-700)"
                 strokeWidth="8"
                 strokeLinecap="round"
                 strokeDasharray={progressDasharray}

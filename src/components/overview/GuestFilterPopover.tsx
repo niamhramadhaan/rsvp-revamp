@@ -1,8 +1,9 @@
-import { useMemo, useState, type ComponentType, type SVGProps } from 'react'
+import { useMemo, useRef, useState, type ComponentType, type SVGProps } from 'react'
 import type { RsvpStatus, SeatGroup } from '../../data/types'
 import { SendIcon, FilterIcon, ChairIcon, QrCheckIcon, TagIcon, BuildingIcon, CheckmarkIcon } from '../icons/UiIcons'
 import { BriefcaseIcon } from '../icons/NavIcons'
 import { useEnterTransition } from '../../hooks/useEnterTransition'
+import { useSlidingIndicator } from '../../hooks/useSlidingIndicator'
 
 export type SeatFilter = 'all' | 'assigned' | 'unassigned'
 // Replaces the old RSVP-status filter (confirmed/pending/declined) — there's
@@ -86,16 +87,21 @@ const RSVP_OPTIONS: Option[] = [
 ]
 
 // One option row on the right-hand panel — a full-width vertical row (not a
-// wrapped pill), with a trailing checkmark once it's the active pick, same
-// "solid fill = selected" language every other filter control in this app
-// already uses.
-function OptionRow({ active, onClick, children }: { active: boolean; onClick: () => void; children: string }) {
+// wrapped pill), with a trailing checkmark once it's the active pick. The
+// selected fill is NOT owned here: a single dark-glass pill (the roster
+// cards' own "View profile" recipe — translucent ink fill + hairline
+// border, no backdrop-blur cost — see the options panel below) slides
+// behind whichever row is active, so switching options reads as one object
+// travelling rather than rows blinking. Rows stay positioned above the pill
+// with transparent borders, so the travelling pill never shifts layout.
+function OptionRow({ tabKey, active, onClick, children }: { tabKey: string; active: boolean; onClick: () => void; children: string }) {
   return (
     <button
       type="button"
+      data-tab-key={tabKey}
       onClick={onClick}
-      className={`flex w-full items-center justify-between gap-2 rounded-lg px-2.5 py-2 text-left text-sm transition ${
-        active ? 'bg-ink-900 text-white' : 'text-ink-900/80 hover:bg-black/5'
+      className={`relative flex w-full items-center justify-between gap-2 rounded-lg border border-transparent px-2.5 py-2 text-left text-sm transition-colors ${
+        active ? 'text-white' : 'text-ink-900/80 hover:bg-black/5'
       }`}
     >
       <span className="truncate capitalize">{children}</span>
@@ -202,36 +208,36 @@ export default function GuestFilterPopover({
     switch (effectiveCategory) {
       case 'invite':
         return INVITE_OPTIONS.map((opt) => (
-          <OptionRow key={opt.value} active={opt.value === inviteFilter} onClick={() => onInviteFilterChange(opt.value as InviteFilter)}>
+          <OptionRow key={opt.value} tabKey={`invite:${opt.value}`} active={opt.value === inviteFilter} onClick={() => onInviteFilterChange(opt.value as InviteFilter)}>
             {opt.label}
           </OptionRow>
         ))
       case 'rsvp':
         return RSVP_OPTIONS.map((opt) => (
-          <OptionRow key={opt.value} active={opt.value === rsvpFilter} onClick={() => onRsvpFilterChange(opt.value as RsvpFilter)}>
+          <OptionRow key={opt.value} tabKey={`rsvp:${opt.value}`} active={opt.value === rsvpFilter} onClick={() => onRsvpFilterChange(opt.value as RsvpFilter)}>
             {opt.label}
           </OptionRow>
         ))
       case 'seat':
         return SEAT_OPTIONS.map((opt) => (
-          <OptionRow key={opt.value} active={opt.value === seatFilter} onClick={() => onSeatFilterChange(opt.value as SeatFilter)}>
+          <OptionRow key={opt.value} tabKey={`seat:${opt.value}`} active={opt.value === seatFilter} onClick={() => onSeatFilterChange(opt.value as SeatFilter)}>
             {opt.label}
           </OptionRow>
         ))
       case 'checkin':
         return CHECKIN_OPTIONS.map((opt) => (
-          <OptionRow key={opt.value} active={opt.value === checkinFilter} onClick={() => onCheckinFilterChange(opt.value as CheckinFilter)}>
+          <OptionRow key={opt.value} tabKey={`checkin:${opt.value}`} active={opt.value === checkinFilter} onClick={() => onCheckinFilterChange(opt.value as CheckinFilter)}>
             {opt.label}
           </OptionRow>
         ))
       case 'group':
         return (
           <>
-            <OptionRow active={groupFilter === 'all'} onClick={() => onGroupFilterChange('all')}>
+            <OptionRow tabKey="group:all" active={groupFilter === 'all'} onClick={() => onGroupFilterChange('all')}>
               All
             </OptionRow>
             {groups.map((g) => (
-              <OptionRow key={g.id} active={groupFilter === g.id} onClick={() => onGroupFilterChange(g.id)}>
+              <OptionRow key={g.id} tabKey={`group:${g.id}`} active={groupFilter === g.id} onClick={() => onGroupFilterChange(g.id)}>
                 {g.label}
               </OptionRow>
             ))}
@@ -240,11 +246,11 @@ export default function GuestFilterPopover({
       case 'role':
         return (
           <>
-            <OptionRow active={roleFilter === 'all'} onClick={() => onRoleFilterChange('all')}>
+            <OptionRow tabKey="role:all" active={roleFilter === 'all'} onClick={() => onRoleFilterChange('all')}>
               All
             </OptionRow>
             {roleOptions.map((r) => (
-              <OptionRow key={r} active={roleFilter === r} onClick={() => onRoleFilterChange(r)}>
+              <OptionRow key={r} tabKey={`role:${r}`} active={roleFilter === r} onClick={() => onRoleFilterChange(r)}>
                 {r}
               </OptionRow>
             ))}
@@ -253,11 +259,11 @@ export default function GuestFilterPopover({
       case 'organization':
         return (
           <>
-            <OptionRow active={organizationFilter === 'all'} onClick={() => onOrganizationFilterChange('all')}>
+            <OptionRow tabKey="organization:all" active={organizationFilter === 'all'} onClick={() => onOrganizationFilterChange('all')}>
               All
             </OptionRow>
             {organizationOptions.map((o) => (
-              <OptionRow key={o} active={organizationFilter === o} onClick={() => onOrganizationFilterChange(o)}>
+              <OptionRow key={o} tabKey={`organization:${o}`} active={organizationFilter === o} onClick={() => onOrganizationFilterChange(o)}>
                 {o}
               </OptionRow>
             ))}
@@ -265,6 +271,30 @@ export default function GuestFilterPopover({
         )
     }
   }
+
+  // Drives the sliding glass pill below — the active row's own namespaced
+  // key, so a role literally named "All" can never collide with the All row.
+  function activeOptionKey(): string {
+    switch (effectiveCategory) {
+      case 'invite':
+        return `invite:${inviteFilter}`
+      case 'rsvp':
+        return `rsvp:${rsvpFilter}`
+      case 'seat':
+        return `seat:${seatFilter}`
+      case 'checkin':
+        return `checkin:${checkinFilter}`
+      case 'group':
+        return `group:${groupFilter}`
+      case 'role':
+        return `role:${roleFilter}`
+      case 'organization':
+        return `organization:${organizationFilter}`
+    }
+  }
+
+  const optionsPanelRef = useRef<HTMLDivElement>(null)
+  const optionIndicator = useSlidingIndicator(optionsPanelRef, activeOptionKey())
 
   return (
     <div className="relative">
@@ -302,10 +332,25 @@ export default function GuestFilterPopover({
             ))}
           </div>
 
-          {/* combo-scrollbar — same themed thin scrollbar ComboField's own
-              suggestion list already uses for "a short popup that
-              genuinely needs a real scroll affordance." */}
-          <div className="combo-scrollbar flex max-h-64 min-w-0 flex-1 flex-col gap-0.5 overflow-y-auto">{renderOptions()}</div>
+          {/* The travelling glass pill lives here, behind the rows (which
+              stay positioned above it) — one object sliding between
+              options instead of each row owning its own selected fill.
+              Inside the scroll container itself, so it scrolls along with
+              the list rather than floating detached from it. */}
+          <div ref={optionsPanelRef} className="combo-scrollbar relative flex max-h-64 min-w-0 flex-1 flex-col gap-0.5 overflow-y-auto">
+            {optionIndicator && (
+              <div
+                aria-hidden="true"
+                className="absolute left-0 top-0 rounded-lg border border-ink-900/15 bg-ink-900/40 transition-[transform,width,height] duration-200 ease-out"
+                style={{
+                  width: optionIndicator.width,
+                  height: optionIndicator.height,
+                  transform: `translate(${optionIndicator.left}px, ${optionIndicator.top}px)`,
+                }}
+              />
+            )}
+            {renderOptions()}
+          </div>
         </div>
 
         {isActive && (

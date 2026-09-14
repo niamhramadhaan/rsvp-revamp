@@ -8,8 +8,9 @@ import EditEventDrawer from './overview/EditEventDrawer'
 import InvitationTemplateDrawer from './overview/InvitationTemplateDrawer'
 import Toast, { type ToastState, type ToastTone } from './Toast'
 import Button from './Button'
-import FloatingMenu from './FloatingMenu'
-import { CalendarIcon, DotsVerticalIcon, MapPinIcon, PlusIcon } from './icons/UiIcons'
+import ConfirmModal from './ConfirmModal'
+import FloatingMenu, { MenuItem } from './FloatingMenu'
+import { CalendarIcon, DotsVerticalIcon, MapPinIcon, PlusIcon, DownloadIcon, ResetIcon } from './icons/UiIcons'
 import { HouseIcon, UserIcon as GuestIcon } from './icons/NavIcons'
 import { focalPointToCss } from '../utils/imagePosition'
 import { useSlidingIndicator } from '../hooks/useSlidingIndicator'
@@ -52,6 +53,10 @@ function EventsPage({ onOpenEvent }: EventsPageProps) {
   // Handed off from EditEventDrawer's own "Edit invitation template" button
   // — same shared-single-slot hand-off OverviewContent's own instance uses.
   const [templateEvent, setTemplateEvent] = useState<Event | null>(null)
+  // The event awaiting an archive/restore confirm — the kebab menu only
+  // asks, the modal below actually commits (see handleToggleArchive), so
+  // neither direction ever fires off a bare menu tap.
+  const [confirmingArchive, setConfirmingArchive] = useState<Event | null>(null)
   const [toast, setToast] = useState<ToastState | null>(null)
   const showToast = useCallback((message: string, tone: ToastTone = 'success') => setToast({ message, tone }), [])
 
@@ -84,6 +89,7 @@ function EventsPage({ onOpenEvent }: EventsPageProps) {
     setEventStatus(event.id, next).then(() => {
       showToast(next === 'archived' ? `"${event.name}" archived` : `"${event.name}" restored`)
     })
+    setConfirmingArchive(null)
   }
 
   return (
@@ -152,7 +158,7 @@ function EventsPage({ onOpenEvent }: EventsPageProps) {
                   guestCount={guestCountByEvent.get(event.id) ?? 0}
                   onOpen={handleOpen}
                   onEdit={setEditingEvent}
-                  onToggleArchive={handleToggleArchive}
+                  onToggleArchive={setConfirmingArchive}
                 />
               ))}
             </div>
@@ -184,6 +190,25 @@ function EventsPage({ onOpenEvent }: EventsPageProps) {
         event={templateEvent}
         onClose={() => setTemplateEvent(null)}
         onSaved={(event) => showToast(`"${event.name}" invitation template updated`)}
+      />
+
+      {/* Archive/restore confirm — archiving is a status flip, never a
+          delete, so the copy says what survives (guests, seating,
+          check-in history) rather than sounding like destruction.
+          Restoring just rejoins the live list with everything intact. */}
+      <ConfirmModal
+        open={Boolean(confirmingArchive)}
+        onClose={() => setConfirmingArchive(null)}
+        title={confirmingArchive?.status === 'archived' ? `Restore "${confirmingArchive?.name}"?` : `Archive "${confirmingArchive?.name ?? 'this event'}"?`}
+        body={
+          confirmingArchive?.status === 'archived'
+            ? 'It rejoins the live list with everything intact.'
+            : 'It leaves the live list, but guests, seating, and check-in history stay intact — restore it anytime.'
+        }
+        confirmLabel={confirmingArchive?.status === 'archived' ? 'Restore' : 'Archive'}
+        onConfirm={() => {
+          if (confirmingArchive) handleToggleArchive(confirmingArchive)
+        }}
       />
 
       <Toast toast={toast} />
@@ -311,29 +336,28 @@ function EventCard({ event, guestCount, onOpen, onEdit, onToggleArchive }: Event
               open={menuOpen}
               onClose={() => setMenuOpen(false)}
               anchorRef={menuTriggerRef}
-              className="w-40 overflow-hidden rounded-xl bg-white py-1 shadow-xl ring-1 ring-black/5"
+              className="w-48 overflow-hidden rounded-2xl border border-white/60 bg-cream/90 p-1.5 shadow-[0_16px_40px_-12px_rgba(16,30,51,0.35)] backdrop-blur-xl"
             >
-              <button
-                type="button"
+              <MenuItem
+                icon={HouseIcon}
+                label="Open dashboard"
                 onClick={() => {
                   setMenuOpen(false)
                   onOpen(event)
                 }}
-                className="flex w-full items-center gap-2 px-3.5 py-2 text-left text-sm font-medium text-ink-900 transition hover:bg-black/5"
-              >
-                <HouseIcon className="h-3.5 w-3.5" />
-                Open dashboard
-              </button>
-              <button
-                type="button"
+              />
+              {/* Archive/Restore only ever ASKS here — the confirm modal
+                  below commits, so neither direction fires off a bare menu
+                  tap. Archive keeps everything (guests, seating, history),
+                  it just leaves the live list. */}
+              <MenuItem
+                icon={isArchived ? ResetIcon : DownloadIcon}
+                label={isArchived ? 'Restore' : 'Archive'}
                 onClick={() => {
                   setMenuOpen(false)
                   onToggleArchive(event)
                 }}
-                className="block w-full px-3.5 py-2 text-left text-sm font-medium text-ink-900 transition hover:bg-black/5"
-              >
-                {isArchived ? 'Restore' : 'Archive'}
-              </button>
+              />
             </FloatingMenu>
           </div>
         </div>

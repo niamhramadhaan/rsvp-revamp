@@ -37,6 +37,73 @@ function normalizePhone(value: string): string {
   return value.replace(/\D/g, '')
 }
 
+// Characters that survive handwriting and retyping without confusion —
+// no 0/O or 1/I pairs. Only the generated parts use this alphabet; the
+// name part keeps plain A-Z (it's read off the guest's own name, and any
+// ambiguity there is caught by the check digit, not prevented up front).
+const CODE_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'
+
+function randomCodeChars(length: number): string {
+  let out = ''
+  for (let i = 0; i < length; i++) out += CODE_ALPHABET[Math.floor(Math.random() * CODE_ALPHABET.length)]
+  return out
+}
+
+function codeCharValue(ch: string): number {
+  const code = ch.charCodeAt(0)
+  // A-Z → 0-25, 0-9 → 26-35.
+  return code >= 65 && code <= 90 ? code - 65 : 26 + (code - 48)
+}
+
+function codeValueChar(value: number): string {
+  return value < 26 ? String.fromCharCode(65 + value) : String(value - 26)
+}
+
+// Typed codes come back with dashes, spaces, or lowercase (see
+// GuestPrintCard/GuestProfileDrawer, where staff read them) — matching
+// always compares this normalized form, never the raw strings. Old
+// random-style tokens (pre-name-code era) normalize the same way, so they
+// keep working: "tok-ab12" and "TOKAB12" are the same code.
+export function normalizeInviteCode(value: string): string {
+  return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, '')
+}
+
+// An invitation code derived from who the guest IS, not a random string:
+// three letters off their name, four characters off their phone number
+// (or email, or random when neither exists), plus a check digit that
+// catches single-character typos at manual entry. Stored with dashes
+// ("CHA-7890-D") so staff can read it back in chunks; matching always
+// goes through normalizeInviteCode, so the dashes are cosmetic.
+// `existing` is every token already on this event — on the rare collision
+// (same initials, same phone tail) the middle part re-rolls random until
+// it's unique, keeping the name part personal either way.
+export function generateInviteCode(name: string, wa: string, email: string, existing: Set<string>): string {
+  const namePart = (name.toUpperCase().replace(/[^A-Z]/g, '') + 'XXX').slice(0, 3)
+
+  const digits = normalizePhone(wa)
+  let mid: string
+  if (digits.length >= 4) {
+    mid = digits.slice(-4)
+  } else if (digits.length > 0) {
+    mid = digits.padStart(4, '0')
+  } else {
+    const local = email.trim().toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 4)
+    mid = local.length === 4 ? local : (local + randomCodeChars(4)).slice(0, 4)
+  }
+
+  const build = (midPart: string) => {
+    const core = `${namePart}${midPart}`
+    const check = codeValueChar([...core].reduce((sum, ch) => sum + codeCharValue(ch), 0) % 36)
+    return `${namePart}-${midPart}-${check}`
+  }
+
+  let code = build(mid)
+  while (existing.has(code)) {
+    code = build(randomCodeChars(4))
+  }
+  return code
+}
+
 // Finds another guest AT THE SAME EVENT already using this email or phone —
 // scoped per-event on purpose: the same real person attending two different
 // events with the same contact info is normal and shouldn't collide, only
@@ -95,7 +162,7 @@ export async function createGuest(eventId: string, input: NewGuestInput): Promis
     contact: { wa, email },
     role: input.role?.trim() ?? '',
     organization: input.organization?.trim() ?? '',
-    token: genId('tok'),
+    token: generateInviteCode(input.name.trim(), wa, email, new Set(guests.filter((g) => g.eventId === eventId).map((g) => g.token))),
     seatId: null,
     seatAssignedAt: null,
     invites: {
@@ -179,6 +246,10 @@ export async function createGuestsBulk(eventId: string, inputs: NewGuestInput[])
   const guests = readTable<Guest>(TABLE)
   const created: Guest[] = []
   let duplicates = 0
+  // Every token already on this event, plus each row accepted earlier in
+  // this same batch — generateInviteCode draws uniqueness from this set,
+  // so two rows with similar names/numbers can't land the same code.
+  const takenTokens = new Set(guests.filter((g) => g.eventId === eventId).map((g) => g.token))
 
   for (const input of inputs) {
     const wa = input.wa?.trim() ?? ''
@@ -187,6 +258,8 @@ export async function createGuestsBulk(eventId: string, inputs: NewGuestInput[])
       duplicates++
       continue
     }
+    const token = generateInviteCode(input.name.trim(), wa, email, takenTokens)
+    takenTokens.add(token)
     created.push({
       id: genId('gst'),
       eventId,
@@ -194,7 +267,7 @@ export async function createGuestsBulk(eventId: string, inputs: NewGuestInput[])
       contact: { wa, email },
       role: input.role?.trim() ?? '',
       organization: input.organization?.trim() ?? '',
-      token: genId('tok'),
+      token,
       seatId: null,
       seatAssignedAt: null,
       invites: {

@@ -73,13 +73,6 @@ export default function EventSwitcher() {
   const entered = useEnterTransition(open)
   const sorted = [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
 
-  const { sheetRef, resetDrag, handlers: dragHandlers } = useSwipeToDismiss({
-    onDismiss: () => setOpen(false),
-  })
-  useEffect(() => {
-    if (open) resetDrag()
-  }, [open, resetDrag])
-
   // The desktop dropdown's own width — measured off the trigger button
   // itself rather than a fixed `w-72`, so the menu reads as a direct
   // extension of the control that opened it (same width, not just the same
@@ -210,13 +203,72 @@ export default function EventSwitcher() {
         </button>
       </div>
 
-      {/* Mobile bottom sheet — a real scrim (dimming the page ties the sheet
-          back to what opened it, instead of it just appearing to float on
-          top), a drag-handle affordance, and full-width rows sized for a
-          thumb rather than a cursor. */}
+      {/* Bottom sheet — the phone event menu. A real scrim (dimming the page
+          ties the sheet back to what opened it, instead of it just
+          appearing to float on top), a drag-handle affordance, and
+          full-width rows sized for a thumb rather than a cursor. Extracted
+          as EventSwitchSheet below so the mobile dock's own logo slot
+          (see EventTabs) can open this exact sheet without mounting a
+          second full switcher. */}
+      <EventSwitchSheet open={open} onClose={() => setOpen(false)} />
+
+      {/* The desktop New-event flow's own drawer — the sheet below is
+          phone-only (`sm:hidden`), so the dropdown's New event button
+          needs this instance up here where desktop can actually see it. */}
+      <CreateEventDrawer
+        open={createOpen}
+        onClose={() => setCreateOpen(false)}
+        onCreated={(event) => {
+          selectEvent(event.id)
+          showToast(`"${event.name}" created`)
+        }}
+      />
+
+      <Toast toast={toast} />
+    </div>
+  )
+}
+
+// The event menu sheet, shared by the header's name trigger above and the
+// mobile dock's logo slot — one component, two launchers, so the event
+// list, guarded navigation, and New-event flow can't drift apart between
+// them.
+export function EventSwitchSheet({ open, onClose }: { open: boolean; onClose: () => void }) {
+  const { requestNavigation } = useSeatEditorGuard()
+  const events = useEvents()
+  const [currentEvent, selectEvent] = useCurrentEvent()
+  const [createOpen, setCreateOpen] = useState(false)
+  const [toast, setToast] = useState<ToastState | null>(null)
+  const showToast = useCallback((message: string, tone: ToastTone = 'success') => setToast({ message, tone }), [])
+
+  const entered = useEnterTransition(open)
+  const sorted = [...events].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+  const { sheetRef, resetDrag, handlers: dragHandlers } = useSwipeToDismiss({
+    onDismiss: onClose,
+  })
+  useEffect(() => {
+    if (open) resetDrag()
+  }, [open, resetDrag])
+
+  // Guarded — switching events while the current one's seat map editor
+  // still has unsaved layout changes needs to ask first, same as any other
+  // way out of the Seating tab (see SeatEditorGuardContext).
+  function handleSelect(id: string) {
+    requestNavigation(() => selectEvent(id))
+    onClose()
+  }
+
+  function handleCreate() {
+    onClose()
+    setCreateOpen(true)
+  }
+
+  return (
+    <>
       <div
         aria-hidden={!open}
-        onClick={() => setOpen(false)}
+        onClick={onClose}
         className={`fixed inset-0 z-40 bg-ink-900/40 transition-opacity duration-300 ease-out sm:hidden ${
           entered ? 'opacity-100' : 'pointer-events-none opacity-0'
         }`}
@@ -243,7 +295,7 @@ export default function EventSwitcher() {
 
         <div className="flex shrink-0 items-center justify-between px-5 pb-1 pt-3">
           <p className="text-sm font-semibold text-ink-900">Switch event</p>
-          <IconButton icon={CloseIcon} size="sm" aria-label="Close" onClick={() => setOpen(false)} />
+          <IconButton icon={CloseIcon} size="sm" aria-label="Close" onClick={onClose} />
         </div>
 
         <div className="no-scrollbar flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto px-3 pt-1">
@@ -296,6 +348,6 @@ export default function EventSwitcher() {
       />
 
       <Toast toast={toast} />
-    </div>
+    </>
   )
 }

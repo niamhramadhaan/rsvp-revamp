@@ -5,13 +5,19 @@ import Switch from './Switch'
 import ConfirmModal from './ConfirmModal'
 import Toast, { type ToastState, type ToastTone } from './Toast'
 import UserDrawer from './UserDrawer'
-import { PlusIcon, CloseIcon, PencilIcon, ChevronDownIcon } from './icons/UiIcons'
-import { useEvents, useStaffPermissions, useStaffActionPermissions, useUsers } from '../data/hooks'
+import SwitchRow from './SwitchRow'
+import { TextField, FieldGroup } from './GroupedField'
+import { PlusIcon, CloseIcon, PencilIcon, ChevronDownIcon, MailIcon, ChatBubbleIcon } from './icons/UiIcons'
+import { useEvents, useStaffPermissions, useStaffActionPermissions, useUsers, useIntegrationSettings } from '../data/hooks'
 import { useSlidingIndicator } from '../hooks/useSlidingIndicator'
 import { removeUser, SECTION_ACTIONS } from '../data/users'
+import {
+  isEmailConfigured,
+  isMessageConfigured,
+} from '../data/integrations'
 import type { AppUser, DashboardSection, PermissionActionGroup } from '../data/types'
 
-type SettingsTab = 'users' | 'permissions'
+type SettingsTab = 'users' | 'permissions' | 'integrations'
 
 // Real dashboard sections, not generic CRUD actions — matches EventTabs/
 // QuickActionsPanel exactly, which is what useCanAccess actually gates.
@@ -103,6 +109,238 @@ function PermissionGroupRow({
         </div>
       )}
     </div>
+  )
+}
+
+// Where invites actually go out through — one card per channel family,
+// each with its own provider picker and credentials. Saves the instant a
+// field changes (same as Permissions), so there's no separate dirty/saved
+// state; the status pill reads straight off whether the picked provider's
+// required fields are filled in (see integrations.ts). Configuration only:
+// nothing here opens a live connection yet — the send drawers still only
+// mark invites as sent, they just name the sender from here now.
+// Where invites actually go out through — one card per channel family.
+// Each card has two states: a read-only summary (secrets masked, never
+// shown back) and an editor. The stored settings only change on Save, so
+// Cancel truly discards and half-typed secrets never sit in storage. Test
+// connection validates the draft locally (required fields present, then a
+// short simulated handshake) — no live call exists yet, so it reports on
+// the details, not on a real server round-trip.
+function IntegrationsPanel({ onToast }: { onToast: (message: string, tone?: ToastTone) => void }) {
+  const [settings, patchSettings] = useIntegrationSettings()
+
+  const [emailEditing, setEmailEditing] = useState(false)
+  const [emailDraft, setEmailDraft] = useState(settings.email)
+  const [emailTest, setEmailTest] = useState<{ state: 'idle' } | { state: 'testing' } | { state: 'done'; ok: boolean; message: string }>({ state: 'idle' })
+
+  const [messageEditing, setMessageEditing] = useState(false)
+  const [messageDraft, setMessageDraft] = useState(settings.message)
+  const [messageTest, setMessageTest] = useState<{ state: 'idle' } | { state: 'testing' } | { state: 'done'; ok: boolean; message: string }>({ state: 'idle' })
+
+  const emailOk = isEmailConfigured(settings.email)
+  const messageOk = isMessageConfigured(settings.message)
+
+  function openEmailEditor() {
+    setEmailDraft(settings.email)
+    setEmailTest({ state: 'idle' })
+    setEmailEditing(true)
+  }
+
+  function saveEmail() {
+    patchSettings({ ...settings, email: emailDraft })
+    setEmailEditing(false)
+    setEmailTest({ state: 'idle' })
+    onToast('Email sender updated')
+  }
+
+  function testEmail() {
+    const missing: string[] = []
+    if (!emailDraft.fromEmail.trim()) missing.push('From email')
+    if (emailDraft.provider === 'mailgun') {
+      if (!emailDraft.mailgunApiKey.trim()) missing.push('API key')
+      if (!emailDraft.mailgunDomain.trim()) missing.push('Domain')
+    }
+    if (emailDraft.provider === 'none' || missing.length > 0) {
+      setEmailTest({ state: 'done', ok: false, message: emailDraft.provider === 'none' ? 'Pick a provider first.' : `Missing: ${missing.join(', ')}.` })
+      return
+    }
+    setEmailTest({ state: 'testing' })
+    window.setTimeout(() => setEmailTest({ state: 'done', ok: true, message: 'Details check out.' }), 900)
+  }
+
+  function openMessageEditor() {
+    setMessageDraft(settings.message)
+    setMessageTest({ state: 'idle' })
+    setMessageEditing(true)
+  }
+
+  function saveMessage() {
+    patchSettings({ ...settings, message: messageDraft })
+    setMessageEditing(false)
+    setMessageTest({ state: 'idle' })
+    onToast('NetMessage sender updated')
+  }
+
+  function testMessage() {
+    if (messageDraft.provider === 'none' || !messageDraft.netmessageApiToken.trim()) {
+      setMessageTest({
+        state: 'done',
+        ok: false,
+        message: messageDraft.provider === 'none' ? 'Pick a provider first.' : 'Missing: API token.',
+      })
+      return
+    }
+    setMessageTest({ state: 'testing' })
+    window.setTimeout(() => setMessageTest({ state: 'done', ok: true, message: 'Details check out.' }), 900)
+  }
+
+  return (
+    <div className="flex flex-col gap-4">
+      <FieldGroup label="Email sending" labelExtra={<StatusPill configured={emailOk} />}>
+        {emailEditing ? (
+          <div className="flex flex-col gap-4">
+            <SwitchRow
+              icon={MailIcon}
+              iconTone="bg-accent-700/10 text-accent-700"
+              title="Mailgun"
+              description="Email through Mailgun's API"
+              checked={emailDraft.provider !== 'none'}
+              onChange={(on) => setEmailDraft({ ...emailDraft, provider: on ? 'mailgun' : 'none' })}
+            />
+            {emailDraft.provider !== 'none' && (
+              <>
+                <div className="flex gap-3">
+                  <div className="min-w-0 flex-1">
+                    <TextField label="From name" value={emailDraft.fromName} onChange={(fromName) => setEmailDraft({ ...emailDraft, fromName })} placeholder="Gamefinity Events" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <TextField label="From email" type="email" value={emailDraft.fromEmail} onChange={(fromEmail) => setEmailDraft({ ...emailDraft, fromEmail })} placeholder="invites@example.com" />
+                  </div>
+                </div>
+                <TextField label="Mailgun API key" type="password" value={emailDraft.mailgunApiKey} onChange={(mailgunApiKey) => setEmailDraft({ ...emailDraft, mailgunApiKey })} />
+                <TextField label="Mailgun domain" value={emailDraft.mailgunDomain} onChange={(mailgunDomain) => setEmailDraft({ ...emailDraft, mailgunDomain })} placeholder="mg.example.com" />
+                <p className="text-[11px] text-muted">Sent through Mailgun's API — needs a key and a verified domain.</p>
+              </>
+            )}
+            <TestResult test={emailTest} />
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" onClick={testEmail} disabled={emailTest.state === 'testing'}>
+                {emailTest.state === 'testing' ? 'Testing…' : 'Test connection'}
+              </Button>
+              <Button variant="ghost" onClick={() => setEmailEditing(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={saveEmail}>
+                Save
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-col divide-y divide-black/5">
+              <SummaryRow label="Provider" value={settings.email.provider === 'mailgun' ? 'Mailgun' : 'Off'} />
+              <SummaryRow
+                label="From"
+                value={settings.email.fromName || settings.email.fromEmail ? `${settings.email.fromName}${settings.email.fromName && settings.email.fromEmail ? ' · ' : ''}${settings.email.fromEmail}` : '—'}
+              />
+              <SummaryRow label="Domain" value={settings.email.mailgunDomain || '—'} />
+              <SummaryRow label="API key" secret set={Boolean(settings.email.mailgunApiKey)} />
+            </div>
+            <div className="mt-2 flex justify-end">
+              <Button variant="ghost" onClick={openEmailEditor}>
+                Edit
+              </Button>
+            </div>
+          </div>
+        )}
+      </FieldGroup>
+
+      <FieldGroup label="NetMessage sending" labelExtra={<StatusPill configured={messageOk} />}>
+        {messageEditing ? (
+          <div className="flex flex-col gap-4">
+            <SwitchRow
+              icon={ChatBubbleIcon}
+              iconTone="bg-accent-cyan/15 text-accent-cyan"
+              title="NetMessage"
+              description="Messages through NetMessage"
+              checked={messageDraft.provider !== 'none'}
+              onChange={(on) => setMessageDraft({ ...messageDraft, provider: on ? 'netmessage' : 'none' })}
+            />
+            {messageDraft.provider !== 'none' && (
+              <>
+                <TextField label="NetMessage API token" type="password" value={messageDraft.netmessageApiToken} onChange={(netmessageApiToken) => setMessageDraft({ ...messageDraft, netmessageApiToken })} />
+                <TextField label="Sender ID" value={messageDraft.netmessageSender} onChange={(netmessageSender) => setMessageDraft({ ...messageDraft, netmessageSender })} placeholder="Gamefinity" />
+                <p className="text-[11px] text-muted">NetMessage invites go out with this token.</p>
+              </>
+            )}
+            <TestResult test={messageTest} />
+            <div className="flex items-center justify-end gap-2">
+              <Button variant="ghost" onClick={testMessage} disabled={messageTest.state === 'testing'}>
+                {messageTest.state === 'testing' ? 'Testing…' : 'Test connection'}
+              </Button>
+              <Button variant="ghost" onClick={() => setMessageEditing(false)}>
+                Cancel
+              </Button>
+              <Button variant="primary" onClick={saveMessage}>
+                Save
+              </Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1">
+            <div className="flex flex-col divide-y divide-black/5">
+              <SummaryRow label="Provider" value={settings.message.provider === 'netmessage' ? 'NetMessage' : 'Off'} />
+              <SummaryRow label="Sender ID" value={settings.message.netmessageSender || '—'} />
+              <SummaryRow label="API token" secret set={Boolean(settings.message.netmessageApiToken)} />
+            </div>
+            <div className="mt-2 flex justify-end">
+              <Button variant="ghost" onClick={openMessageEditor}>
+                Edit
+              </Button>
+            </div>
+          </div>
+        )}
+      </FieldGroup>
+    </div>
+  )
+}
+
+// One read-only row of the saved-state summary — plain values shown as-is,
+// secrets as a fixed row of dots (never the value, never its length).
+function SummaryRow({ label, value, secret, set }: { label: string; value?: string; secret?: boolean; set?: boolean }) {
+  return (
+    <div className="flex items-center justify-between gap-3 py-1.5">
+      <span className="text-sm text-muted">{label}</span>
+      {secret ? (
+        set ? (
+          <span className="font-mono text-xs tracking-widest text-ink-900">••••••••</span>
+        ) : (
+          <span className="text-sm text-muted/70">Not set</span>
+        )
+      ) : (
+        <span className="truncate text-sm font-medium text-ink-900">{value}</span>
+      )}
+    </div>
+  )
+}
+
+// Test connection's own result line — nothing while idle, so a fresh editor
+// doesn't carry a stale verdict.
+function TestResult({ test }: { test: { state: 'idle' } | { state: 'testing' } | { state: 'done'; ok: boolean; message: string } }) {
+  if (test.state === 'idle') return null
+  if (test.state === 'testing') return <p className="text-xs font-medium text-muted">Testing…</p>
+  return <p className={`text-xs font-medium ${test.ok ? 'text-status-confirmed' : 'text-status-declined'}`}>{test.message}</p>
+}
+
+function StatusPill({ configured }: { configured: boolean }) {
+  return configured ? (
+    <span className="shrink-0 rounded-full bg-status-confirmed/10 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-status-confirmed">
+      Configured
+    </span>
+  ) : (
+    <span className="shrink-0 rounded-full bg-black/5 px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-muted">
+      Not connected
+    </span>
   )
 }
 
@@ -270,7 +508,7 @@ function SettingsPage() {
       <div className="flex flex-col gap-4">
         <div>
           <h2 className="font-display text-2xl font-bold text-ink-900">Users & Roles</h2>
-          <p className="text-sm text-muted">Manage accounts and control who can access Guests, Seating, Check-in, and Reports.</p>
+          <p className="text-sm text-muted">Manage accounts, permissions, and the third-party senders invites go out through.</p>
         </div>
 
         <div ref={tabRailRef} className="relative flex w-fit gap-1.5 rounded-2xl border border-black/5 bg-cream p-1.5">
@@ -285,6 +523,7 @@ function SettingsPage() {
             [
               { key: 'users', label: 'Users' },
               { key: 'permissions', label: 'Permissions' },
+              { key: 'integrations', label: 'Integrations' },
             ] as const
           ).map((t) => (
             <button
@@ -301,7 +540,7 @@ function SettingsPage() {
           ))}
         </div>
 
-        {tab === 'users' ? <UsersPanel onToast={showToast} /> : <PermissionsPanel />}
+        {tab === 'users' ? <UsersPanel onToast={showToast} /> : tab === 'permissions' ? <PermissionsPanel /> : <IntegrationsPanel onToast={showToast} />}
       </div>
 
       <Toast toast={toast} />

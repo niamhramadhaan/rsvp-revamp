@@ -237,7 +237,8 @@ export interface Guest {
   role: string
   organization: string
   /** This guest's own invitation code — generated once at creation
-   * (createGuest/createGuestsBulk, `genId('tok')`) and never regenerated.
+   * (createGuest/createGuestsBulk via generateInviteCode: name + phone/
+   * email + check digit, unique per event) and never regenerated.
    * Shown view-only (as text + a Code128 barcode) in GuestProfileDrawer's
    * own Invitation section, and it's the one value CheckInDrawer's
    * resolve() matches an exact scan/typed code against. Used to also back a

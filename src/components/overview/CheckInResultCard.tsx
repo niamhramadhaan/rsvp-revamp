@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
-import type { Guest, Seat } from '../../data/types'
+import type { Guest, Seat, SeatGroup } from '../../data/types'
 import { useSwipeToConfirm } from '../../hooks/useSwipeToConfirm'
-import { QrCheckIcon, ChairIcon, ClockIcon, AlertTriangleIcon, ChevronRightIcon, DownloadIcon } from '../icons/UiIcons'
+import { QrCheckIcon, ChairIcon, ClockIcon, AlertTriangleIcon, ChevronRightIcon, ChevronLeftIcon, ChevronDownIcon, DownloadIcon } from '../icons/UiIcons'
 import GuestAvatar from './GuestAvatar'
 
 // The check-in flow's single result state, produced by CheckInDrawer's
@@ -22,6 +22,9 @@ export type CheckInResolution =
 export interface CheckInResultCardProps {
   resolution: CheckInResolution
   emptySeats: Seat[]
+  /** Seat categories for the no-seat picker's own group stepper — the
+   * currently-selected event's groups, same source SeatingView reads. */
+  groups: SeatGroup[]
   /** The resolved guest's own seat label (e.g. "REG-12"), already looked up
    * by CheckInDrawer — null when they have none. Only used by the 'ready' and
    * 'checked_in' cards, to render the boarding-pass-style seat stub. */
@@ -76,6 +79,7 @@ function PersonBadge({ guest }: { guest: Guest }) {
 export default function CheckInResultCard({
   resolution,
   emptySeats,
+  groups,
   seatLabel,
   onConfirm,
   onAssignSeat,
@@ -95,7 +99,7 @@ export default function CheckInResultCard({
           <div className="min-w-0">
             <p className="font-display text-lg font-bold">No match for &ldquo;{resolution.query}&rdquo;</p>
             <p className="mt-0.5 text-sm text-status-declined/80">
-              Double-check the code, or search the guest's name above — it searches as you type.
+              No guest or code matches that — check the spelling, or enter their exact invitation code.
             </p>
           </div>
         </div>
@@ -123,40 +127,52 @@ export default function CheckInResultCard({
     // calmer than every other outcome instead of borrowing an urgency color
     // it doesn't need. Same "neutral, not a status hue" ink-900/8 wash
     // StatTiles' own Invited tile uses for the same reason.
+    //
+    // Compact by design — a door staffer glances at this for one second:
+    // whose face, when and by whom they were checked in, and the one
+    // escape hatch (wrong person → undo). No big badge, no paragraph.
     return (
       <div
         key={`dup-${guest.id}`}
-        className="rounded-2xl border border-ink-900/10 bg-ink-900/5 p-6 text-ink-900"
+        className="rounded-2xl border border-ink-900/10 bg-ink-900/5 p-4 text-ink-900"
       >
-        <div className="flex flex-wrap items-center gap-4">
-          <IconBadge className="bg-ink-900/8">
-            <ClockIcon className="h-7 w-7" style={{ animation: 'checkin-shake 500ms ease-out 420ms both' }} />
-          </IconBadge>
+        <div className="flex items-center gap-3">
+          {/* Identity first (same PersonBadge corner-badge language the
+              ready card uses), clock shrunk to the corner — the face is
+              what a staffer matches, the clock just says "again". */}
+          <span className="relative shrink-0">
+            <GuestAvatar name={guest.name} imageUrl={guest.imageUrl} avatarConfig={guest.avatarConfig} sizeClassName="h-11 w-11" />
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-ink-900 text-white">
+              <ClockIcon className="h-2.5 w-2.5" />
+            </span>
+          </span>
           <div className="min-w-0 flex-1">
-            <p className="font-display text-lg font-bold text-ink-900">{guest.name} is already checked in</p>
-            <p className="mt-0.5 text-sm text-muted">
-              Checked in at {guest.checkedInAt ? formatTime(guest.checkedInAt) : '—'}
-              {guest.checkedInBy ? ` by ${guest.checkedInBy}` : ''}. Not letting them in twice.
+            <p className="truncate text-sm font-semibold text-ink-900">{guest.name} is already checked in</p>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+              <ClockIcon className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">
+                {guest.checkedInAt ? formatTime(guest.checkedInAt) : '—'}
+                {guest.checkedInBy ? ` · by ${guest.checkedInBy}` : ''}
+              </span>
             </p>
-            {/* -mx-2 -my-1 + matching px/py: grows the actual tap target
-                past the visible underlined text (a link's rendered text is
-                usually well under 44px tall) without changing how it looks. */}
-            <button
-              type="button"
-              onClick={() => onUndo(guest)}
-              className="-mx-2 -my-1 mt-1 inline-block px-2 py-2 text-xs font-semibold text-ink-900 underline decoration-ink-900/25 underline-offset-2 transition hover:decoration-ink-900/60 active:scale-[0.97]"
-            >
-              Not them? Undo this check-in
-            </button>
           </div>
         </div>
+        {/* -mx-2 -my-1 + matching px/py: grows the actual tap target
+            past the visible underlined text (a link's rendered text is
+            usually well under 44px tall) without changing how it looks. */}
+        <button
+          type="button"
+          onClick={() => onUndo(guest)}
+          className="-mx-2 -my-1 mt-1 inline-block px-2 py-2 text-xs font-semibold text-ink-900 underline decoration-ink-900/25 underline-offset-2 transition hover:decoration-ink-900/60 active:scale-[0.97]"
+        >
+          Not them? Undo this check-in
+        </button>
       </div>
     )
   }
 
   if (resolution.kind === 'no_seat') {
     const { guest } = resolution
-    const preview = emptySeats.slice(0, 24)
     return (
       <div
         key={`no-seat-${guest.id}`}
@@ -169,30 +185,12 @@ export default function CheckInResultCard({
           <div className="min-w-0 flex-1">
             <p className="font-display text-lg font-bold text-ink-900">{guest.name} has no seat yet</p>
             <p className="mt-0.5 text-sm text-accent-700/90">
-              Assign any open seat to let them straight through — this doesn't touch the seat map layout.
+              Pick a seat below to let them straight through — this doesn't touch the seat map layout.
             </p>
           </div>
         </div>
 
-        {preview.length > 0 ? (
-          <div className="mt-4 flex flex-wrap gap-2">
-            {preview.map((seat) => (
-              <button
-                key={seat.id}
-                type="button"
-                onClick={() => onAssignSeat(guest, seat.id)}
-                className="min-h-[44px] rounded-lg bg-white/70 px-3.5 text-sm font-semibold text-ink-900 transition active:scale-[0.97] hover:bg-white"
-              >
-                {seat.label}
-              </button>
-            ))}
-            {emptySeats.length > preview.length && (
-              <span className="self-center px-1 text-xs text-accent-700/70">+{emptySeats.length - preview.length} more open</span>
-            )}
-          </div>
-        ) : (
-          <p className="mt-4 text-sm font-medium text-accent-700/90">No open seats left — check the seat map.</p>
-        )}
+        <NoSeatPicker key={guest.id} guest={guest} emptySeats={emptySeats} groups={groups} onAssignSeat={onAssignSeat} />
       </div>
     )
   }
@@ -202,6 +200,124 @@ export default function CheckInResultCard({
 }
 
 const CONFIRM_DELAY_MS = 3000
+const ASSIGN_DELAY_MS = 1000
+
+// The no-seat picker's own compact selector — two stepper boxes instead of
+// the old wall of up-to-24 seat buttons (unreadable on a phone, one tap per
+// seat with no sense of category). Left box steps the category (only ones
+// with actual room — dead categories would just be dead clicks), right box
+// steps the seat number within it. Tapping Assign plays an inline progress
+// fill, then fires onAssignSeat: CheckInDrawer flips the resolution to
+// `ready`, and the flow continues into the normal swipe-to-check-in card,
+// exactly as if the guest had a seat all along.
+function NoSeatPicker({
+  guest,
+  emptySeats,
+  groups,
+  onAssignSeat,
+}: {
+  guest: Guest
+  emptySeats: Seat[]
+  groups: SeatGroup[]
+  onAssignSeat: (guest: Guest, seatId: string) => void
+}) {
+  // Buckets of room, in group order — defensive "Any" bucket when seats
+  // exist but no group rows do (every real seat has a group, so this is
+  // unreachable in practice, not a second real path).
+  const buckets = useMemo(() => {
+    const withRoom = groups
+      .map((group) => ({ group, seats: emptySeats.filter((s) => s.groupId === group.id) }))
+      .filter((b) => b.seats.length > 0)
+    if (withRoom.length > 0) return withRoom.map((b) => ({ label: b.group.label, seats: b.seats }))
+    return emptySeats.length > 0 ? [{ label: 'Any', seats: emptySeats }] : []
+  }, [groups, emptySeats])
+
+  const [groupIdx, setGroupIdx] = useState(0)
+  const [seatIdx, setSeatIdx] = useState(0)
+  const [assigning, setAssigning] = useState(false)
+
+  const bucket = buckets.length > 0 ? buckets[groupIdx % buckets.length] : null
+  const seat = bucket ? bucket.seats[seatIdx % bucket.seats.length] : null
+  // Hoisted for the steppers below — narrowing from the early return
+  // doesn't persist into their closures, so they read this instead.
+  const bucketSeatCount = bucket ? bucket.seats.length : 0
+
+  useEffect(() => {
+    if (!assigning || !seat) return
+    const id = window.setTimeout(() => onAssignSeat(guest, seat.id), ASSIGN_DELAY_MS)
+    return () => window.clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assigning])
+
+  if (!bucket || !seat) {
+    return <p className="mt-4 text-sm font-medium text-accent-700/90">No open seats left — check the seat map.</p>
+  }
+
+  function stepGroup(dir: 1 | -1) {
+    if (assigning) return
+    setGroupIdx((i) => (i + dir + buckets.length) % buckets.length)
+    setSeatIdx(0)
+  }
+
+  function stepSeat(dir: 1 | -1) {
+    if (assigning || bucketSeatCount === 0) return
+    setSeatIdx((i) => (i + dir + bucketSeatCount) % bucketSeatCount)
+  }
+
+  const stepperButton =
+    'flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-ink-900 transition active:scale-95 disabled:opacity-40 hover:bg-black/5'
+
+  return (
+    <div className="mt-4 flex flex-col gap-2">
+      <div className="grid grid-cols-2 gap-2">
+        <div className="flex items-center justify-between gap-1 rounded-xl bg-white/70 px-1 py-1.5">
+          <button type="button" onClick={() => stepGroup(-1)} disabled={assigning} aria-label="Previous category" className={stepperButton}>
+            <ChevronLeftIcon className="h-4 w-4" />
+          </button>
+          <div className="min-w-0 flex-1 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Group</p>
+            <p className="truncate font-display text-base font-bold text-ink-900">{bucket.label}</p>
+            <p className="text-[11px] tabular-nums text-muted">{bucket.seats.length} open</p>
+          </div>
+          <button type="button" onClick={() => stepGroup(1)} disabled={assigning} aria-label="Next category" className={stepperButton}>
+            <ChevronRightIcon className="h-4 w-4" />
+          </button>
+        </div>
+
+        <div className="flex items-center justify-between gap-1 rounded-xl bg-white/70 px-1 py-1.5">
+          <button type="button" onClick={() => stepSeat(-1)} disabled={assigning} aria-label="Previous seat" className={stepperButton}>
+            <ChevronDownIcon className="h-4 w-4 rotate-180" />
+          </button>
+          <div className="min-w-0 flex-1 text-center">
+            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Seat</p>
+            <p className="truncate font-display text-base font-bold tabular-nums text-ink-900">{seat.label}</p>
+            <p className="text-[11px] tabular-nums text-muted">
+              {bucket.seats.length > 0 ? (seatIdx % bucket.seats.length) + 1 : 0} of {bucket.seats.length}
+            </p>
+          </div>
+          <button type="button" onClick={() => stepSeat(1)} disabled={assigning} aria-label="Next seat" className={stepperButton}>
+            <ChevronDownIcon className="h-4 w-4" />
+          </button>
+        </div>
+      </div>
+
+      {assigning ? (
+        <div className="relative overflow-hidden rounded-xl bg-white/40" role="status">
+          <div className="h-11 origin-left rounded-xl bg-white" style={{ animation: `checkin-progress-fill ${ASSIGN_DELAY_MS}ms linear forwards` }} />
+          <p className="absolute inset-0 flex items-center justify-center text-sm font-semibold text-ink-900">Assigning {seat.label}…</p>
+        </div>
+      ) : (
+        <button
+          type="button"
+          onClick={() => setAssigning(true)}
+          className="flex min-h-[44px] items-center justify-center rounded-xl bg-white px-4 text-sm font-bold text-ink-900 transition active:scale-[0.98] hover:bg-white/80"
+        >
+          Assign {seat.label}
+        </button>
+      )}
+    </div>
+  )
+}
 
 // The swipe-to-check-in flow: swipe the handle across → a determinate 3s
 // "confirming" bar plays → only then does the real onConfirm(guest) fire

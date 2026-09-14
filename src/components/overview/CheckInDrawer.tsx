@@ -1,13 +1,16 @@
 import { useEffect, useMemo, useState } from 'react'
-import type { Event, Guest, Seat } from '../../data/types'
+import type { Event, Guest, Seat, SeatGroup } from '../../data/types'
 import { checkInGuest, undoCheckIn } from '../../data/checkin'
 import { assignSeat } from '../../data/seating'
+import { normalizeInviteCode } from '../../data/guests'
 import { getGuestStage } from '../../data/selectors'
 import { GLASS_CARD, STAGE_TONE } from './cardChrome'
 import { SearchIcon, QrCheckIcon, CloseIcon } from '../icons/UiIcons'
 import DrawerPanelPortal from '../DrawerPanelPortal'
+import Button from '../Button'
 import QrScanner from './QrScanner'
 import CheckInResultCard, { type CheckInResolution } from './CheckInResultCard'
+import GuestAvatar from './GuestAvatar'
 import GuestPrintCard from './GuestPrintCard'
 import type { ToastTone } from '../Toast'
 
@@ -16,6 +19,9 @@ export interface CheckInDrawerProps {
   onClose: () => void
   guests: Guest[]
   seats: Seat[]
+  /** Seat categories for the no-seat picker's own group stepper — the
+   * currently-selected event's groups, same source SeatingView reads. */
+  groups: SeatGroup[]
   /** For GuestPrintCard's own nameplate — the currently-selected event, or
    * null if none (the print button just won't show an event line then). */
   event: Event | null
@@ -44,6 +50,15 @@ function matchesQuery(guest: Guest, q: string): boolean {
   )
 }
 
+// Groups a raw code keystroke run the way stored codes read — 3 letters,
+// 4 middle characters, then the check tail ("CHA-7890-D"). Dynamic rather
+// than fixed-width so pre-name-code tokens (longer random strings) still
+// format into readable chunks instead of truncating.
+export function formatCodeInput(value: string): string {
+  const raw = normalizeInviteCode(value)
+  return [raw.slice(0, 3), raw.slice(3, 7), raw.slice(7)].filter(Boolean).join('-')
+}
+
 // The full scan → resolve → confirm/override/assign-seat/undo flow, in its
 // own drawer — reachable only from QuickActionsPanel's "Open Check-in" now
 // (there used to also be a dedicated Check-in tab with its own launcher and
@@ -58,10 +73,15 @@ function matchesQuery(guest: Guest, q: string): boolean {
 // TicketCard renders, see its own `formatsToSupport`) and a text field for
 // a pasted/typed code or a name-search fallback when the camera can't be
 // used (no camera, denied permission, a guest without a phone handy).
-export default function CheckInDrawer({ open, onClose, guests, seats, event, onToast }: CheckInDrawerProps) {
+export default function CheckInDrawer({ open, onClose, guests, seats, groups, event, onToast }: CheckInDrawerProps) {
   const [query, setQuery] = useState('')
   const [matches, setMatches] = useState<Guest[]>([])
   const [resolution, setResolution] = useState<CheckInResolution | null>(null)
+  // A guest picked by name, waiting on their invitation code — the gate
+  // before any swipe card. Null the rest of the time; an exact code typed
+  // (or scanned) straight into the field above skips this entirely, since
+  // entering the code already proves what this step would ask for.
+  const [pendingGuest, setPendingGuest] = useState<Guest | null>(null)
   const [cameraOpen, setCameraOpen] = useState(true)
   // Which guest's printable card is open — CheckedInCelebration's own
   // "Print card" button. Separate from `resolution` so closing the print
@@ -76,6 +96,7 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
     setQuery('')
     setMatches([])
     setResolution(null)
+    setPendingGuest(null)
     setCameraOpen(true)
     setPrintGuest(null)
   }, [open])
@@ -88,32 +109,35 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
   const seatById = useMemo(() => new Map(seats.map((s) => [s.id, s])), [seats])
   const resolvedSeatLabel = resolution && 'guest' in resolution && resolution.guest.seatId ? (seatById.get(resolution.guest.seatId)?.label ?? null) : null
 
+  // Two ways in. An exact invitation code (typed or scanned) resolves
+  // straight to the guest's card — entering the code already proves what
+  // the gate below would ask for. A name (or fragment) instead lists
+  // matches to pick from, and picking one parks the guest in `pendingGuest`
+  // for the code gate rather than resolving them outright: finding someone
+  // is not permission to check them in.
   function resolve(value: string) {
-    const trimmed = value.trim()
-    if (!trimmed) {
+    const code = normalizeInviteCode(value)
+    if (!code) {
       setMatches([])
       setResolution(null)
       return
     }
-
-    const byToken = guests.find((g) => g.token === trimmed)
-    if (byToken) {
+    const byCode = guests.find((g) => normalizeInviteCode(g.token) === code)
+    if (byCode) {
       setMatches([])
-      setResolution(classifyGuest(byToken))
+      setPendingGuest(null)
+      setResolution(classifyGuest(byCode))
       return
     }
 
-    const q = trimmed.toLowerCase()
+    const q = value.trim().toLowerCase()
     const found = guests.filter((g) => matchesQuery(g, q))
-    if (found.length === 1) {
+    if (found.length === 0) {
       setMatches([])
-      setResolution(classifyGuest(found[0]))
-    } else if (found.length > 1) {
+      setResolution({ kind: 'not_found', query: value.trim() })
+    } else {
       setMatches(found)
       setResolution(null)
-    } else {
-      setMatches([])
-      setResolution({ kind: 'not_found', query: trimmed })
     }
   }
 
@@ -133,7 +157,8 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
   function handlePickMatch(guest: Guest) {
     setQuery(guest.name)
     setMatches([])
-    setResolution(classifyGuest(guest))
+    setResolution(null)
+    setPendingGuest(guest)
   }
 
   // Clears the current result so a still-open camera resumes for the next
@@ -144,6 +169,7 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
     setQuery('')
     setMatches([])
     setResolution(null)
+    setPendingGuest(null)
   }
 
   async function handleConfirm(guest: Guest) {
@@ -166,9 +192,7 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
     await undoCheckIn(guest.id)
     onToast(`Check-in undone for ${guest.name}`)
     setResolution(classifyGuest({ ...guest, checkedInAt: null, checkedInBy: null }))
-  }
-
-  return (
+  }  return (
     <>
     <DrawerPanelPortal open={open} onClose={onClose} title="Scan a ticket" icon={QrCheckIcon}>
       <div className="flex flex-col gap-6">
@@ -192,7 +216,7 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
             >
               <QrCheckIcon className="h-9 w-9" />
               <span className="text-sm font-semibold">Reopen camera</span>
-              <span className="text-xs text-accent-700/70">or search by name/code below</span>
+              <span className="text-xs text-accent-700/70">or enter the invitation code below</span>
             </button>
           )}
         </div>
@@ -211,13 +235,9 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
         {matches.length > 0 && (
           <div className={`flex flex-col gap-1 rounded-2xl p-2 ${GLASS_CARD}`}>
             <p className="px-2 pb-1 pt-1 text-xs font-medium text-muted">{matches.length} guests match — pick one</p>
-            {/* The whole row (name included) resolves this guest into the
-                check-in action card below — not a view-profile shortcut.
-                Tapping a match here means "this is who I meant," the same
-                as an exact code match would have skipped straight to; a
-                name that only sometimes opens a profile and sometimes
-                picks a guest (depending on exactly what you tapped) read as
-                a mistake, not two real actions. */}
+            {/* Picking a name means "this is who I meant" — it parks them
+                in the code gate below, not straight into a swipe card.
+                Finding someone is not permission to check them in. */}
             {matches.map((g) => (
               <button
                 key={g.id}
@@ -237,11 +257,24 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
           </div>
         )}
 
+        {pendingGuest && !resolution && (
+          <InviteCodeGate
+            key={pendingGuest.id}
+            guest={pendingGuest}
+            onVerified={(guest) => {
+              setPendingGuest(null)
+              setResolution(classifyGuest(guest))
+            }}
+            onCancel={() => setPendingGuest(null)}
+          />
+        )}
+
         {resolution && (
           <div className="flex flex-col gap-3">
             <CheckInResultCard
               resolution={resolution}
               emptySeats={emptySeats}
+              groups={groups}
               seatLabel={resolvedSeatLabel}
               onConfirm={handleConfirm}
               onAssignSeat={handleAssignSeat}
@@ -276,5 +309,72 @@ export default function CheckInDrawer({ open, onClose, guests, seats, event, onT
       seatLabel={printGuest?.seatId ? (seatById.get(printGuest.seatId)?.label ?? null) : null}
     />
     </>
+  )
+}
+
+// The code gate between finding a guest by name and being allowed to check
+// them in — finding someone is not permission. Bound to THIS guest: the
+// entered code must match their own token, not just any valid code. The
+// input formats itself with dashes as they type (see formatCodeInput), so
+// what staff type mirrors how the code reads on the profile and the
+// printed card.
+function InviteCodeGate({ guest, onVerified, onCancel }: { guest: Guest; onVerified: (guest: Guest) => void; onCancel: () => void }) {
+  const [code, setCode] = useState('')
+  const [error, setError] = useState(false)
+  const firstName = guest.name.split(' ')[0] || guest.name
+
+  function handleVerify() {
+    if (normalizeInviteCode(code) === normalizeInviteCode(guest.token)) {
+      onVerified(guest)
+    } else {
+      setError(true)
+    }
+  }
+
+  return (
+    <div className="rounded-2xl border border-accent-700/25 bg-accent-700/5 p-5">
+      <div className="flex items-center gap-3">
+        <GuestAvatar name={guest.name} imageUrl={guest.imageUrl} avatarConfig={guest.avatarConfig} sizeClassName="h-11 w-11" />
+        <div className="min-w-0">
+          <p className="truncate text-sm font-semibold text-ink-900">Enter {firstName}&rsquo;s invitation code</p>
+          <p className="text-xs text-muted">From their profile or printed card.</p>
+        </div>
+      </div>
+
+      <input
+        type="text"
+        value={code}
+        onChange={(e) => {
+          setCode(formatCodeInput(e.target.value))
+          setError(false)
+        }}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') handleVerify()
+        }}
+        placeholder="ABC-1234-D"
+        aria-label={`Invitation code for ${guest.name}`}
+        autoComplete="off"
+        autoCapitalize="characters"
+        spellCheck={false}
+        maxLength={19}
+        className={`mt-4 w-full rounded-xl border-[1.5px] bg-white px-4 py-3 text-center font-mono text-lg font-bold tracking-[0.2em] text-ink-900 uppercase outline-none transition placeholder:font-sans placeholder:text-sm placeholder:font-medium placeholder:normal-case placeholder:tracking-normal placeholder:text-muted/60 focus:ring-4 ${
+          error ? 'border-status-declined focus:ring-status-declined/15' : 'border-black/10 focus:border-accent-700 focus:ring-accent-700/10'
+        }`}
+      />
+      {error && (
+        <p role="alert" className="mt-2 text-center text-xs font-medium text-status-declined">
+          That code doesn&rsquo;t match {guest.name} — check and try again.
+        </p>
+      )}
+
+      <div className="mt-3 flex items-center justify-end gap-2">
+        <Button variant="ghost" onClick={onCancel}>
+          Not them
+        </Button>
+        <Button variant="primary" onClick={handleVerify} disabled={normalizeInviteCode(code).length === 0}>
+          Verify code
+        </Button>
+      </div>
+    </div>
   )
 }

@@ -46,8 +46,15 @@ function InviteStatusPill({ status }: { status: InviteChannelStatus }) {
 // + text this app used to only ever render on a per-guest TicketCard. No
 // flip, no "view ticket" hand-off to a second drawer any more — just what
 // this section already was, plus the code itself.
+//
+// Tap-to-flip card: barcode on the front, the code itself big and readable
+// on the back with a copy button (staff paste it into NetMessage or read it
+// out for manual check-in). One flip, no auto-rotate — it rests wherever
+// it was left.
 function GuestInvitationCode({ guest }: { guest: Guest }) {
   const barcodeRef = useRef<SVGSVGElement>(null)
+  const [flipped, setFlipped] = useState(false)
+  const [copied, setCopied] = useState(false)
 
   useEffect(() => {
     if (!barcodeRef.current) return
@@ -62,13 +69,63 @@ function GuestInvitationCode({ guest }: { guest: Guest }) {
     })
   }, [guest.token])
 
+  // Fresh card per guest — flipping for one guest must not carry over to
+  // the next profile opened in this same drawer instance.
+  useEffect(() => {
+    setFlipped(false)
+    setCopied(false)
+  }, [guest.id])
+
+  async function handleCopy() {
+    try {
+      await navigator.clipboard.writeText(guest.token)
+    } catch {
+      // Clipboard API unavailable (non-secure context, old browser) —
+      // fall back to the classic hidden-textarea execCommand path.
+      const area = document.createElement('textarea')
+      area.value = guest.token
+      document.body.appendChild(area)
+      area.select()
+      document.execCommand('copy')
+      document.body.removeChild(area)
+    }
+    setCopied(true)
+    window.setTimeout(() => setCopied(false), 1500)
+  }
+
   return (
     // bg-black/[0.03], not plain white — the same transparent neutral tint
     // this app's own "block content" surfaces already use (FieldGroup,
     // PermissionGroupRow), not an off-theme blue tint.
     <div className="flex flex-col items-center gap-1.5 rounded-xl border border-black/5 bg-black/[0.03] p-3">
-      <svg ref={barcodeRef} role="img" aria-label={`Invitation barcode for ${guest.name}`} className="h-10 w-full max-w-[220px]" />
-      <p className="font-mono text-[10px] tracking-widest text-muted">{guest.token}</p>
+      <button
+        type="button"
+        onClick={() => setFlipped((v) => !v)}
+        aria-label={flipped ? 'Show barcode' : `Show invitation code for ${guest.name}`}
+        className="w-full [perspective:800px]"
+      >
+        <span
+          className={`relative block transition-transform duration-500 ease-out [transform-style:preserve-3d] ${
+            flipped ? '[transform:rotateY(180deg)]' : ''
+          }`}
+        >
+          <span className="flex flex-col items-center gap-1.5 [backface-visibility:hidden]">
+            <svg ref={barcodeRef} role="img" aria-label={`Invitation barcode for ${guest.name}`} className="h-10 w-full max-w-[220px]" />
+            <span className="text-[11px] font-medium text-muted">Tap to reveal code</span>
+          </span>
+          <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 [backface-visibility:hidden] [transform:rotateY(180deg)]">
+            <span className="font-mono text-lg font-bold tracking-[0.2em] text-ink-900">{guest.token}</span>
+            <span className="text-[11px] font-medium text-muted">Tap to flip back</span>
+          </span>
+        </span>
+      </button>
+      <button
+        type="button"
+        onClick={handleCopy}
+        className="rounded-lg bg-black/5 px-3 py-1.5 text-xs font-semibold text-ink-900 transition active:scale-[0.97] hover:bg-black/10"
+      >
+        {copied ? 'Copied!' : 'Copy code'}
+      </button>
     </div>
   )
 }
@@ -257,7 +314,10 @@ export default function GuestProfileDrawer({ guest, seatLabel, groupLabel, onClo
           )}
 
           <section>
-            <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">Details</h4>
+            <h4 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+              Details
+              <InfoTooltip label="How they appear on the roster." />
+            </h4>
             {editing ? (
               <div className="flex flex-col gap-3 rounded-xl border border-black/5 p-3.5">
                 {/* ComboField — same stylized "type or pick" dropdown
@@ -282,15 +342,18 @@ export default function GuestProfileDrawer({ guest, seatLabel, groupLabel, onClo
           </section>
 
           <section>
-            <h4 className="mb-1 text-xs font-semibold uppercase tracking-wide text-muted">Contact</h4>
+            <h4 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
+              Contact
+              <InfoTooltip label="Where their invite can reach them." />
+            </h4>
             {editing ? (
               <div className="flex flex-col gap-3 rounded-xl border border-black/5 p-3.5">
-                <LabeledField label="WhatsApp" value={draftWa} onChange={setDraftWa} />
+                <LabeledField label="NetMessage" value={draftWa} onChange={setDraftWa} />
                 <LabeledField label="Email" type="email" value={draftEmail} onChange={setDraftEmail} />
               </div>
             ) : (
               <div className="divide-y divide-black/5 rounded-xl border border-black/5 px-3.5">
-                <DetailRow label="WhatsApp" value={guest.contact.wa} placeholder="Not provided" />
+                <DetailRow label="NetMessage" value={guest.contact.wa} placeholder="Not provided" />
                 <DetailRow label="Email" value={guest.contact.email} placeholder="Not provided" />
               </div>
             )}
@@ -341,7 +404,7 @@ export default function GuestProfileDrawer({ guest, seatLabel, groupLabel, onClo
               <section>
                 <h4 className="mb-1 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted">
                   Invitation
-                  <InfoTooltip label="Sent from Send Invitations, not here." />
+                  <InfoTooltip label="Sent in bulk from Send Invitations — shown here only." />
                 </h4>
                 {/* Read-only here on purpose — sending is a bulk action
                     (Send Invitations, reached from Quick actions), not a
@@ -352,7 +415,7 @@ export default function GuestProfileDrawer({ guest, seatLabel, groupLabel, onClo
                   <div className="flex items-center justify-between gap-3">
                     <span className="flex items-center gap-1.5 text-sm text-ink-900">
                       <ChatBubbleIcon className="h-3.5 w-3.5 text-accent-cyan" />
-                      WhatsApp
+                      NetMessage
                     </span>
                     <InviteStatusPill status={guest.invites.wa.status} />
                   </div>

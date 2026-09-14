@@ -479,7 +479,7 @@ export default function AddGuestDrawer({ open, onClose, eventId, onCreated, onBu
             </span>
             <span className="flex items-center gap-1.5">
               <p className="text-sm font-medium text-ink-900">Drag an Excel file here</p>
-              <InfoTooltip label='Needs a "Name" column — WhatsApp, Email, Role, and Organization are picked up too if present. Imported guests start unseated with no invite sent; seating and sending happen afterward, from Send Invitations.' />
+              <InfoTooltip label="Needs a Name column — NetMessage, Email, Role, and Organization come along if present. Imports land unseated and uninvited." />
             </span>
             <button
               type="button"
@@ -598,7 +598,7 @@ export default function AddGuestDrawer({ open, onClose, eventId, onCreated, onBu
 
           <FieldGroup
             label="Contact"
-            labelExtra={<InfoTooltip label="Sending the invite happens afterward, from Send Invitations — not from here." />}
+            labelExtra={<InfoTooltip label="One of the two is enough. Invites go out later, from Send Invitations." />}
           >
             {/* Stacked, not side-by-side — a 2-col grid read cramped at this
                 drawer's own width (labels/placeholders truncating), and
@@ -612,7 +612,7 @@ export default function AddGuestDrawer({ open, onClose, eventId, onCreated, onBu
                   WhatsApp-green here on purpose — ChatBubbleIcon's own doc
                   explains why this app avoids that brand color. */}
               <LabeledField
-                label="WhatsApp"
+                label="NetMessage"
                 value={wa}
                 icon={ChatBubbleIcon}
                 iconClassName="text-accent-cyan"
@@ -634,13 +634,13 @@ export default function AddGuestDrawer({ open, onClose, eventId, onCreated, onBu
               />
             </div>
             {contactError && (
-              <p className="text-xs font-medium text-status-declined">Add a WhatsApp number or an email — at least one is needed to invite them.</p>
+              <p className="text-xs font-medium text-status-declined">Add a phone number or an email — at least one is needed.</p>
             )}
           </FieldGroup>
 
           <FieldGroup
             label="Role & organization"
-            labelExtra={<InfoTooltip label="Suggestions are every role/organization already used on a guest, across every event — pick one, or just type a new one." />}
+            labelExtra={<InfoTooltip label="Pick from values you've used before — or type a new one." />}
           >
             {/* ComboField — a themed "type or pick" dropdown (GroupedField.tsx),
                 not a native <datalist> (unstylable, renders as the OS/

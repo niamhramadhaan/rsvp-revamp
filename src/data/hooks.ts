@@ -6,6 +6,7 @@ import { getSeatMapByEvent, listSeats, listSeatGroups } from './seatmaps'
 import { listLayoutBlocks } from './layoutBlocks'
 import { getProfile, updateProfile, PROFILE_KEY } from './profile'
 import { getSessionUser, SESSION_KEY } from './session'
+import { getIntegrationSettings, updateIntegrationSettings, INTEGRATIONS_KEY } from './integrations'
 import {
   listUsers,
   getStaffPermissions,
@@ -17,6 +18,7 @@ import {
   STAFF_ACTION_PERMISSIONS_KEY,
 } from './users'
 import type { AppUser, DashboardSection, Event, Guest, LayoutBlock, Profile, Seat, SeatGroup, SeatMap, StaffActionPermissions, StaffPermissions } from './types'
+import type { IntegrationSettings } from './integrations'
 
 const CURRENT_EVENT_KEY = 'currentEventId'
 
@@ -146,6 +148,26 @@ export function useSessionUser(): AppUser | null {
   }, [])
 
   return user
+}
+
+// Third-party sending configuration (see integrations.ts) — same
+// subscribe/patch shape as the staff-permission hooks above. Saves the
+// instant a field changes (like Permissions does), so there's no separate
+// dirty/saved state to manage.
+export function useIntegrationSettings(): [IntegrationSettings, (next: IntegrationSettings) => void] {
+  const [settings, setSettings] = useState<IntegrationSettings>(() => getIntegrationSettings())
+
+  useEffect(() => {
+    const load = () => setSettings(getIntegrationSettings())
+    return subscribe(INTEGRATIONS_KEY, load)
+  }, [])
+
+  function patch(next: IntegrationSettings) {
+    updateIntegrationSettings(next)
+    setSettings(next)
+  }
+
+  return [settings, patch]
 }
 
 // The one local Profile record (see that type's own doc) — reads

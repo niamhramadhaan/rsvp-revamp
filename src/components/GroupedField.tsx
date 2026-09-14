@@ -18,31 +18,39 @@ export const FIELD_LABEL = 'text-xs font-semibold text-ink-900'
 export const FIELD_INPUT =
   'w-full rounded-xl border-[1.5px] border-black/10 bg-white px-3.5 py-2.5 text-sm text-ink-900 outline-none transition-colors focus:border-accent-700'
 
-export interface LabeledFieldProps {
+export interface TextFieldProps {
   label: string
   value: string
   onChange: (value: string) => void
   type?: string
   required?: boolean
   autoFocus?: boolean
-  /** A leading glyph inside the input — AddGuestDrawer's own WhatsApp/Email
-   * contact fields use this to tell the two channels apart at a glance
-   * (distinct icon + tint each), rather than two identical boxes that only
-   * differ by their label text. Optional: every other LabeledField in the
-   * app (name, role, organization, venue…) has no real icon of its own and
-   * skips this entirely. */
+  /** Hint text shown while empty — a hint, never a label replacement (the
+   * real label always sits above the input). */
+  placeholder?: string
+  disabled?: boolean
+  /** A leading glyph inside the input — same slot/behavior as LabeledField's
+   * own `icon` prop. */
   icon?: ComponentType<SVGProps<SVGSVGElement>>
-  /** Tailwind text-color class for `icon` — e.g. 'text-accent-cyan'. Only
-   * meaningful alongside `icon`. */
+  /** Tailwind text-color class for `icon`. Only meaningful alongside `icon`. */
   iconClassName?: string
+  /** Inline validation message below the input — the same status-declined
+   * recipe every drawer's own submit error already uses. Absent means valid. */
+  error?: string
 }
 
-// forwardRef — AddGuestDrawer's own "seamless next guest" flow needs to
-// refocus the Name field itself right after a successful add (the drawer
-// stays open, so a plain `autoFocus` — which only ever fires once, on
-// first mount — can't do this a second time).
-export const LabeledField = forwardRef<HTMLInputElement, LabeledFieldProps>(function LabeledField(
-  { label, value, onChange, type = 'text', required, autoFocus, icon: Icon, iconClassName },
+// The designed text input — tinted to sit on a card surface (FieldGroup,
+// settings cards, drawer bodies) instead of LabeledField's plain white box,
+// which reads as a pasted-in default next to those surfaces. Rests in the
+// same transparent neutral the cards themselves use, lifts to white with an
+// accent border + halo on focus so the active field is unmistakable, and
+// carries its own error state rather than leaving each form to hand-roll
+// one. The shared starting point for any new designed form — reach for
+// this before inventing another input variant. LabeledField stays as-is
+// for the white-box callers it already serves; this is the tinted sibling,
+// not a replacement.
+export const TextField = forwardRef<HTMLInputElement, TextFieldProps>(function TextField(
+  { label, value, onChange, type = 'text', required, autoFocus, placeholder, disabled, error, icon: Icon, iconClassName },
   ref,
 ) {
   const id = useId()
@@ -63,7 +71,74 @@ export const LabeledField = forwardRef<HTMLInputElement, LabeledFieldProps>(func
           onChange={(e) => onChange(e.target.value)}
           required={required}
           autoFocus={autoFocus}
-          className={`${FIELD_INPUT} ${Icon ? 'pl-10' : ''}`}
+          placeholder={placeholder}
+          disabled={disabled}
+          aria-invalid={Boolean(error)}
+          className={`w-full rounded-xl border-[1.5px] bg-black/[0.03] px-3.5 py-2.5 text-sm text-ink-900 outline-none transition placeholder:text-muted/70 disabled:opacity-60 ${
+            Icon ? 'pl-10' : ''
+          } ${
+            error
+              ? 'border-status-declined focus:border-status-declined focus:ring-4 focus:ring-status-declined/15'
+              : 'border-black/10 hover:border-black/20 focus:border-accent-700 focus:bg-white focus:ring-4 focus:ring-accent-700/10'
+          }`}
+        />
+      </div>
+      {error && <span className="text-[11px] font-medium text-status-declined">{error}</span>}
+    </label>
+  )
+})
+
+export interface LabeledFieldProps {
+  label: string
+  value: string
+  onChange: (value: string) => void
+  type?: string
+  required?: boolean
+  autoFocus?: boolean
+  /** Hint text shown while empty — a hint, never a label replacement (the
+   * real label always sits above the input). Optional: most fields read
+   * fine with no example to show. */
+  placeholder?: string
+  /** A leading glyph inside the input — AddGuestDrawer's own WhatsApp/Email
+   * contact fields use this to tell the two channels apart at a glance
+   * (distinct icon + tint each), rather than two identical boxes that only
+   * differ by their label text. Optional: every other LabeledField in the
+   * app (name, role, organization, venue…) has no real icon of its own and
+   * skips this entirely. */
+  icon?: ComponentType<SVGProps<SVGSVGElement>>
+  /** Tailwind text-color class for `icon` — e.g. 'text-accent-cyan'. Only
+   * meaningful alongside `icon`. */
+  iconClassName?: string
+}
+
+// forwardRef — AddGuestDrawer's own "seamless next guest" flow needs to
+// refocus the Name field itself right after a successful add (the drawer
+// stays open, so a plain `autoFocus` — which only ever fires once, on
+// first mount — can't do this a second time).
+export const LabeledField = forwardRef<HTMLInputElement, LabeledFieldProps>(function LabeledField(
+  { label, value, onChange, type = 'text', required, autoFocus, placeholder, icon: Icon, iconClassName },
+  ref,
+) {
+  const id = useId()
+  return (
+    <label htmlFor={id} className="flex flex-col gap-1.5">
+      <span className={FIELD_LABEL}>{label}</span>
+      <div className="relative">
+        {Icon && (
+          <span className={`pointer-events-none absolute left-3.5 top-1/2 -translate-y-1/2 ${iconClassName ?? 'text-icon-gray'}`}>
+            <Icon className="h-4 w-4" />
+          </span>
+        )}
+        <input
+          ref={ref}
+          id={id}
+          type={type}
+          value={value}
+          onChange={(e) => onChange(e.target.value)}
+          required={required}
+          autoFocus={autoFocus}
+          placeholder={placeholder}
+          className={`${FIELD_INPUT} ${Icon ? 'pl-10' : ''} placeholder:text-muted/70`}
         />
       </div>
     </label>

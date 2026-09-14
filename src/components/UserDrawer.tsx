@@ -4,8 +4,10 @@ import { LabeledField, FieldGroup } from './GroupedField'
 import { InfoTooltip } from './Tooltip'
 import Button, { type ButtonProgress } from './Button'
 import { UsersIcon, UserIcon } from './icons/NavIcons'
-import { CheckmarkIcon, MailIcon, LockIcon, ImageIcon } from './icons/UiIcons'
+import { CheckmarkIcon, MailIcon, LockIcon, UploadIcon } from './icons/UiIcons'
 import { createUser, updateUser } from '../data/users'
+import { getSessionUserId } from '../data/session'
+import { updateProfile } from '../data/profile'
 import { useEvents } from '../data/hooks'
 import { compressImage, DEFAULT_MAX_DIMENSION } from '../utils/imageCompression'
 import type { AppRole, AppUser } from '../data/types'
@@ -143,6 +145,15 @@ export default function UserDrawer({ open, onClose, editingUser, onCreated, onUp
           imageUrl,
           ...(password ? { password } : {}),
         })
+        // The signed-in session reads its own name/photo/role off the
+        // separate Profile record (see session.ts), not off any AppUser
+        // row — so editing your own account here has to sync it too, or
+        // the header avatar and ID card keep showing stale values while
+        // the Users list already shows the new ones. Other accounts need
+        // nothing: their cards refresh off the users-table subscription.
+        if (getSessionUserId() === editingUser.id) {
+          updateProfile({ name: name.trim(), role, imageUrl })
+        }
         setProgress('success')
         onUpdated?.({ ...editingUser, name: name.trim(), email: email.trim(), role, eventIds, imageUrl })
         onClose()
@@ -223,11 +234,15 @@ export default function UserDrawer({ open, onClose, editingUser, onCreated, onUp
               <img src={imageUrl} alt="" className="h-full w-full object-cover" />
             ) : (
               <span className="flex h-full w-full items-center justify-center">
-                <ImageIcon className="h-5 w-5" />
+                <UploadIcon className="h-5 w-5" />
               </span>
             )}
-            <span className="absolute bottom-0 right-0 flex h-6 w-6 items-center justify-center rounded-full bg-ink-900 text-white ring-2 ring-cream">
-              <ImageIcon className="h-3 w-3" />
+            {/* Front layer by construction: last in paint order with its own
+                stacking level, shadow, and ring, so it reads above the photo
+                instead of sinking into it. UploadIcon (not the generic image
+                glyph) because this badge has one job — picking a file. */}
+            <span className="absolute bottom-0 right-0 z-10 flex h-6 w-6 items-center justify-center rounded-full bg-accent-700 text-white shadow-md ring-2 ring-cream">
+              <UploadIcon className="h-3 w-3" />
             </span>
             <input type="file" accept="image/*" className="hidden" disabled={photoProcessing} onChange={(e) => handlePhotoPick(e.target.files?.[0])} />
           </label>
@@ -236,7 +251,10 @@ export default function UserDrawer({ open, onClose, editingUser, onCreated, onUp
           </div>
         </div>
 
-        <FieldGroup label="Account">
+        <FieldGroup
+          label="Account"
+          labelExtra={<InfoTooltip label="Email is their login; new passwords need 6+ characters." />}
+        >
           <div className="flex flex-col gap-4">
             <LabeledField label="Email" type="email" value={email} onChange={setEmail} icon={MailIcon} />
             <LabeledField
@@ -250,7 +268,7 @@ export default function UserDrawer({ open, onClose, editingUser, onCreated, onUp
           </div>
         </FieldGroup>
 
-        <FieldGroup label="Role" labelExtra={<InfoTooltip label="Staff's own access to Guests/Seating/Check-in/Reports is fine-tuned in the Permissions tab — this only picks Admin vs Staff." />}>
+        <FieldGroup label="Role" labelExtra={<InfoTooltip label="Admins see everything; Staff get what Permissions allows." />}>
           <div className="flex gap-2.5">
             {ROLE_CARDS.map((r) => {
               const selected = role === r.key
@@ -274,7 +292,7 @@ export default function UserDrawer({ open, onClose, editingUser, onCreated, onUp
           </div>
         </FieldGroup>
 
-        <FieldGroup label="Events" labelExtra={<InfoTooltip label="Which events this account can see — leave all unchecked for none yet." />}>
+        <FieldGroup label="Events" labelExtra={<InfoTooltip label="Tick the events they can see; untick all for none." />}>
           <div className="combo-scrollbar flex max-h-48 flex-col gap-1 overflow-y-auto">
             {events.length === 0 && <p className="px-1 text-xs text-muted">No events yet.</p>}
             {events.map((ev) => {
@@ -287,13 +305,21 @@ export default function UserDrawer({ open, onClose, editingUser, onCreated, onUp
                   }`}
                 >
                   <input type="checkbox" className="hidden" checked={selected} onChange={() => toggleEvent(ev.id)} />
-                  <span
-                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${
-                      selected ? 'bg-accent-700 text-white' : 'bg-black/5 text-ink-900/60'
-                    }`}
-                  >
-                    {eventInitials(ev.name)}
-                  </span>
+                  {/* Same routing as the event switcher's own rows: the
+                      event's uploaded logo when it has one, the monogram
+                      chip only as the fallback — never two sources of truth
+                      for what an event's mark looks like. */}
+                  {ev.logoUrl ? (
+                    <img src={ev.logoUrl} alt="" className="h-9 w-9 shrink-0 rounded-xl object-cover" />
+                  ) : (
+                    <span
+                      className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl text-xs font-bold ${
+                        selected ? 'bg-accent-700 text-white' : 'bg-black/5 text-ink-900/60'
+                      }`}
+                    >
+                      {eventInitials(ev.name)}
+                    </span>
+                  )}
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium text-ink-900">{ev.name}</p>
                     <p className="truncate text-xs text-muted">{formatEventDate(ev.date)}</p>

@@ -149,7 +149,7 @@ function TemplateFields({
             mode === 'message' ? 'text-ink-900' : 'text-ink-900/60 hover:text-ink-900'
           }`}
         >
-          Message
+          NetMessage
         </button>
         <button
           type="button"
@@ -165,7 +165,7 @@ function TemplateFields({
 
       {mode === 'message' ? (
         <FieldGroup
-          label="Message"
+          label="NetMessage"
           labelExtra={<InfoTooltip label="What every guest gets for this event." />}
         >
           <div className="flex flex-col gap-4">

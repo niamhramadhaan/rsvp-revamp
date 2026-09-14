@@ -61,14 +61,20 @@ function TopHeader() {
     // per-event search already covers the common case, and this app has no
     // other cross-event guest lookup surface, so removing it from the
     // header was a clean cut rather than needing to be re-homed elsewhere.
-    <header className="relative flex h-[72px] shrink-0 items-center justify-between gap-3 border-b border-black/5 bg-cream px-5 sm:px-8 lg:h-[89px] lg:rounded-3xl lg:border-b-0 lg:px-10 lg:shadow-[0_20px_50px_-20px_rgba(16,30,51,0.35)]">
+    <header className="relative hidden h-[72px] shrink-0 items-center justify-between gap-3 border-b border-black/5 bg-cream px-5 sm:px-8 lg:flex lg:h-[89px] lg:rounded-3xl lg:border-b-0 lg:px-10 lg:shadow-[0_20px_50px_-20px_rgba(16,30,51,0.35)]">
       {/* `gap-3` guarantees breathing room between the event name and the
           icon/avatar cluster even at their narrowest — without it,
           `justify-between` only keeps them from overlapping, so a long
           truncated title ends up hugging the icons with zero space between,
           which is what actually read as "cramped" on mobile (not the icons'
           own size, which were already touch-target-correct). */}
-      <EventSwitcher />
+      {/* Event name + switcher lives here on desktop only — below lg: the
+          event menu becomes the dock's own logo slot (see EventTabs), so
+          the header keeps just the avatar cluster on a phone instead of
+          repeating the event name twice on one screen. */}
+      <div className="hidden min-w-0 lg:block">
+        <EventSwitcher />
+      </div>
 
       {/* shrink-0 is load-bearing: without it, this cluster is just as
           shrinkable as EventSwitcher's side by default (`justify-between`

@@ -1,4 +1,4 @@
-import { useEffect, useRef, type PointerEvent as ReactPointerEvent } from 'react'
+import { useRef, type PointerEvent as ReactPointerEvent } from 'react'
 import { createPortal } from 'react-dom'
 import Avatar, { genConfig } from 'react-nice-avatar'
 import { useEnterTransition } from '../../hooks/useEnterTransition'
@@ -148,22 +148,17 @@ function GuestPrintCardFace({ guest, event, seatLabel }: { guest: Guest; event: 
 // Opened by CheckInResultCard's own "Print card" button (see
 // CheckedInCelebration) once a guest is actually checked in — a portal
 // (same reasoning as Modal's own doc: this needs to escape any transformed
-// ancestor to truly center over the viewport) that auto-triggers
-// `window.print()` the moment it mounts. There's no PDF library anywhere in
-// this app (a real dependency this project doesn't otherwise need) — the
-// browser's own print dialog's "Save as PDF" destination is what actually
-// produces the PDF file here, the same zero-new-dependency approach this
-// app's own CSV export already takes for "generate a file" elsewhere.
+// ancestor to truly center over the viewport) that simply shows the card.
+// Printing is an explicit second tap ("Print / Save as PDF" below), never
+// automatic on open — staff open this to look at the card far more often
+// than to print it, and an ambush print dialog on every view was the
+// complaint. There's no PDF library anywhere in this app (a real dependency
+// this project doesn't otherwise need) — the browser's own print dialog's
+// "Save as PDF" destination is what actually produces the PDF file here,
+// the same zero-new-dependency approach this app's own CSV export already
+// takes for "generate a file" elsewhere.
 export default function GuestPrintCard({ open, onClose, guest, event, seatLabel }: GuestPrintCardProps) {
   const entered = useEnterTransition(open)
-
-  useEffect(() => {
-    if (!open || !guest) return
-    // One frame's grace so the card is fully painted before the print
-    // dialog's own preview snapshots it.
-    const id = window.setTimeout(() => window.print(), 150)
-    return () => window.clearTimeout(id)
-  }, [open, guest])
 
   if (!guest) return null
 

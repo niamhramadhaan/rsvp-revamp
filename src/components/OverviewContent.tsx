@@ -20,7 +20,7 @@ import SendInvitationsDrawer from './overview/SendInvitationsDrawer'
 import DrawerPanelPortal from './DrawerPanelPortal'
 import Toast, { type ToastState, type ToastTone } from './Toast'
 import { useSeatEditorGuard } from './SeatEditorGuardContext'
-import { CalendarIcon, CheckmarkIcon, ClockIcon, SeatingChartIcon } from './icons/UiIcons'
+import { ClockIcon } from './icons/UiIcons'
 import { useCanAccess, useCurrentEvent, useGuests, useSeatMap } from '../data/hooks'
 import { getGuestCounts, getGuestGroupLabel, getRecentActivity } from '../data/selectors'
 import { unassignSeat } from '../data/seating'
@@ -50,13 +50,6 @@ function getGreeting(): string {
   if (hour < 12) return 'Good morning'
   if (hour < 18) return 'Good afternoon'
   return 'Good evening'
-}
-
-// A short, non-redundant date for the hero's own date pill — EventBanner's
-// pill right below already spells out the full weekday/month/day/year; this
-// one's meant to be glanced at, not read, so it's deliberately terser.
-function formatHeroDate(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
 }
 
 // The whole page is scoped to ONE event — whichever is currently selected via
@@ -238,47 +231,18 @@ function OverviewContent() {
     <>
       <PageStage>
         <div className="flex flex-col gap-6">
-          {/* The page's own hero — a big font-display headline + a one-line
-              context summary on the left, a row of quick-glance status/
-              utility pills on the right (see getGreeting/formatHeroDate's
-              own docs above). Persistent across every tab, not just
-              Overview, the same way EventBanner/QuickActionsPanel right
-              below it already are — this is page-level chrome, not
+          {/* Hero is greeting + event name only — the old Live/date/
+              Seating-map pill cluster on the right was removed per
+              request: status already reads off the event everywhere else,
+              and seating has its own tab. Persistent across every tab, not
+              just Overview, the same way EventBanner/QuickActionsPanel
+              right below it already are — page-level chrome, not
               Overview-tab content. */}
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">{getGreeting()}</h1>
-              <p className="mt-1.5 text-sm text-muted">
-                {currentEvent
-                  ? `${currentEvent.name} · ${counts.total} guest${counts.total === 1 ? '' : 's'} · ${counts.checkedIn} checked in`
-                  : 'Select or create an event to get started.'}
-              </p>
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <span
-                className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-xs font-semibold ${
-                  currentEvent?.status === 'archived'
-                    ? 'border-black/10 bg-black/5 text-muted'
-                    : 'border-status-confirmed/30 bg-status-confirmed/10 text-status-confirmed'
-                }`}
-              >
-                <CheckmarkIcon className="h-3.5 w-3.5" />
-                {currentEvent?.status === 'archived' ? 'Archived' : 'Live'}
-              </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink-900">
-                <CalendarIcon className="h-3.5 w-3.5 text-muted" />
-                {currentEvent ? formatHeroDate(currentEvent.date) : '—'}
-              </span>
-              <button
-                type="button"
-                onClick={() => handleTabChange('seating')}
-                className="inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white px-3 py-1.5 text-xs font-semibold text-ink-900 transition hover:bg-black/5 active:scale-[0.97]"
-              >
-                <SeatingChartIcon className="h-3.5 w-3.5 text-muted" />
-                Seating map
-              </button>
-            </div>
+          <div className="min-w-0">
+            <h1 className="font-display text-3xl font-bold text-ink-900 sm:text-4xl">{getGreeting()}</h1>
+            <p className="mt-1.5 text-sm text-muted">
+              {currentEvent ? currentEvent.name : 'Select or create an event to get started.'}
+            </p>
           </div>
 
           <div className="grid grid-cols-1 gap-6 @5xl:grid-cols-[1fr_280px] @5xl:items-start">
@@ -290,7 +254,7 @@ function OverviewContent() {
             />
           </div>
 
-          <EventTabs activeKey={activeTab} onTabChange={handleTabChange} />
+          <EventTabs activeKey={activeTab} onTabChange={handleTabChange} onScan={openScanDrawer} />
 
           {activeTab === 'overview' && (
             <>
@@ -382,6 +346,7 @@ function OverviewContent() {
             onClose={() => setScanDrawerOpen(false)}
             guests={guests}
             seats={seats}
+            groups={groups}
             event={currentEvent}
             onToast={showToast}
           />
@@ -416,7 +381,19 @@ function OverviewContent() {
         }
       />
 
-      <SendInvitationsDrawer open={sendInvitesOpen} onClose={() => setSendInvitesOpen(false)} guests={guests} onToast={showToast} />
+      <SendInvitationsDrawer
+        open={sendInvitesOpen}
+        onClose={() => setSendInvitesOpen(false)}
+        guests={guests}
+        event={currentEvent}
+        onEditTemplate={() => {
+          // Same shared-single-slot hand-off as openInvitationTemplateDrawer
+          // — the template is written in that drawer, so this one closes
+          // first rather than stacking behind it.
+          if (currentEvent) openInvitationTemplateDrawer(currentEvent)
+        }}
+        onToast={showToast}
+      />
 
       {/* Recent Activity's own "View all" — the full feed (getRecentActivity
           with no limit, unlike the mini-widget's own capped `activity`) as

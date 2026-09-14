@@ -62,7 +62,12 @@ export default function EventCountdownWidget({ event }: EventCountdownWidgetProp
           size to its own content and leave a mismatched gap below whichever
           one is shorter. */}
       <div className={`flex flex-1 flex-wrap items-center justify-between gap-4 rounded-2xl p-5 ${GLASS_CARD}`}>
-        <div className="flex items-center gap-3">
+        {/* min-w-0 flex-1 — without it this group's own box refuses to
+            shrink (flex items default to min-width: auto), so a long event
+            name pushes the numerals clean off narrow cards instead of
+            truncating. The numerals get shrink-0 for the same reason in
+            reverse: digits must never compress. */}
+        <div className="flex min-w-0 flex-1 items-center gap-3">
           <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-700/10 text-accent-700">
             <ClockIcon className="h-5 w-5" />
           </span>
@@ -73,7 +78,7 @@ export default function EventCountdownWidget({ event }: EventCountdownWidgetProp
         </div>
 
         {!countdown.isPast && (
-          <div className="flex items-baseline gap-2.5">
+          <div className="flex shrink-0 items-baseline gap-2.5">
             <CountdownUnit value={countdown.days} label="days" />
             <span className="pb-3.5 font-display text-lg font-bold text-muted/40">:</span>
             <CountdownUnit value={countdown.hours} label="hrs" />

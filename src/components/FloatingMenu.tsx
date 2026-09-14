@@ -1,4 +1,4 @@
-import { useLayoutEffect, useState, type ReactNode, type RefObject } from 'react'
+import { useLayoutEffect, useState, type ComponentType, type ReactNode, type RefObject, type SVGProps } from 'react'
 import { createPortal } from 'react-dom'
 
 export interface FloatingMenuProps {
@@ -82,5 +82,42 @@ export default function FloatingMenu({ open, onClose, anchorRef, align = 'end', 
       </div>
     </>,
     document.body,
+  )
+}
+
+// One row inside any FloatingMenu — icon tile + label, the same tile
+// language drawer section headers and role cards already use. Two tones:
+// default for navigation-ish actions, danger for the destructive one.
+// Callers keep owning the panel itself (width lives with them), rows stay
+// identical everywhere.
+export function MenuItem({
+  icon: Icon,
+  label,
+  tone = 'default',
+  onClick,
+}: {
+  icon: ComponentType<SVGProps<SVGSVGElement>>
+  label: string
+  tone?: 'default' | 'danger'
+  onClick: () => void
+}) {
+  const danger = tone === 'danger'
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`flex w-full items-center gap-2.5 rounded-xl px-2.5 py-2 text-left text-sm font-medium transition active:scale-[0.98] ${
+        danger ? 'text-status-declined hover:bg-status-declined/10' : 'text-ink-900 hover:bg-black/5'
+      }`}
+    >
+      <span
+        className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-lg ${
+          danger ? 'bg-status-declined/10 text-status-declined' : 'bg-black/5 text-ink-900/70'
+        }`}
+      >
+        <Icon className="h-3.5 w-3.5" />
+      </span>
+      {label}
+    </button>
   )
 }

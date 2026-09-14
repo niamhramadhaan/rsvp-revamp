@@ -1860,36 +1860,61 @@ export default function SeatMapCanvas({
                     more often than not. */}
                 <div
                   inert={!tipsOpen}
-                  className={`absolute bottom-[calc(100%+8px)] left-0 z-50 w-72 origin-bottom-left rounded-2xl bg-white p-4 text-left shadow-xl ring-1 ring-black/5 transition duration-150 ease-out ${
+                  className={`absolute bottom-[calc(100%+8px)] left-0 z-50 max-h-[60vh] w-80 max-w-[calc(100vw-3rem)] origin-bottom-left overflow-auto rounded-2xl bg-white p-4 text-left shadow-xl ring-1 ring-black/5 transition duration-150 ease-out ${
                     tipsEntered ? 'scale-100 opacity-100' : 'pointer-events-none scale-95 opacity-0'
                   }`}
                 >
-                  {/* Gesture/shortcut, then what it does — a real two-column
-                      table instead of a flat bulleted sentence list, so the
+                  {/* Gesture/action, then what it does — real two-column
+                      tables instead of a flat bulleted sentence list, so the
                       "what do I press/do" half reads as its own scannable
-                      column rather than buried mid-sentence. */}
-                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Editing this floor plan</p>
-                  <table className="mt-1.5 w-full border-collapse text-xs text-ink-900">
+                      column rather than buried mid-sentence. Grouped the way
+                      the work actually splits: shaping the plan, moving
+                      around it, and keyboard shortcuts. min-w keeps the
+                      columns readable on narrow canvases — the popover
+                      scrolls horizontally instead of crushing them. */}
+                  <p className="text-[11px] font-semibold uppercase tracking-wide text-muted">Shaping the plan</p>
+                  <table className="mt-1.5 w-full min-w-[19rem] border-collapse text-xs text-ink-900">
                     <tbody>
                       <tr className="align-top">
-                        <td className="w-24 py-1 pr-2 font-semibold text-ink-900/70">Drag</td>
-                        <td className="py-1">Move a piece, or drag a new one off the dock to drop it where you release.</td>
+                        <td className="w-28 py-1 pr-2 font-semibold text-ink-900/70">Drag</td>
+                        <td className="py-1">Move a piece, or drop a new one from the dock.</td>
                       </tr>
                       <tr className="align-top">
                         <td className="py-1 pr-2 font-semibold text-ink-900/70">Tap</td>
-                        <td className="py-1">Select — the bar above it deletes, duplicates, or switches category.</td>
+                        <td className="py-1">Select for delete, duplicate, or switch.</td>
+                      </tr>
+                      <tr className="align-top">
+                        <td className="py-1 pr-2 font-semibold text-ink-900/70">Double-click</td>
+                        <td className="py-1">Rename a stage or label.</td>
                       </tr>
                       <tr className="align-top">
                         <td className="py-1 pr-2 font-semibold text-ink-900/70">Corner handles</td>
-                        <td className="py-1">Resize a stage, table, or label piece.</td>
+                        <td className="py-1">Resize stages, tables, labels.</td>
                       </tr>
                       <tr className="align-top">
                         <td className="py-1 pr-2 font-semibold text-ink-900/70">Drag empty space</td>
-                        <td className="py-1">Box-select several at once, for bulk actions.</td>
+                        <td className="py-1">Box-select for bulk actions.</td>
                       </tr>
                       <tr className="align-top">
-                        <td className="py-1 pr-2 font-semibold text-ink-900/70">Space, or middle-drag</td>
-                        <td className="py-1">Pan · Ctrl/Cmd+scroll to zoom.</td>
+                        <td className="py-1 pr-2 font-semibold text-ink-900/70">Guest dock</td>
+                        <td className="py-1">Drop a guest onto an empty seat.</td>
+                      </tr>
+                    </tbody>
+                  </table>
+                  <p className="mt-3 text-[11px] font-semibold uppercase tracking-wide text-muted">Getting around</p>
+                  <table className="mt-1.5 w-full min-w-[19rem] border-collapse text-xs text-ink-900">
+                    <tbody>
+                      <tr className="align-top">
+                        <td className="w-28 py-1 pr-2 font-semibold text-ink-900/70">Space, or middle-drag</td>
+                        <td className="py-1">Pan.</td>
+                      </tr>
+                      <tr className="align-top">
+                        <td className="py-1 pr-2 font-semibold text-ink-900/70">Scroll</td>
+                        <td className="py-1">Move around.</td>
+                      </tr>
+                      <tr className="align-top">
+                        <td className="py-1 pr-2 font-semibold text-ink-900/70">Ctrl/Cmd + scroll</td>
+                        <td className="py-1">Zoom to cursor.</td>
                       </tr>
                     </tbody>
                   </table>
@@ -1897,7 +1922,7 @@ export default function SeatMapCanvas({
                   <table className="mt-1.5 w-full border-collapse text-xs text-ink-900">
                     <tbody>
                       <tr>
-                        <td className="w-24 py-1 pr-2 font-mono text-[11px] text-ink-900/70">Del</td>
+                        <td className="w-28 py-1 pr-2 font-mono text-[11px] text-ink-900/70">Del</td>
                         <td className="py-1">Delete</td>
                       </tr>
                       <tr>

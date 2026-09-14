@@ -8,7 +8,7 @@ import { GLASS_CARD, STAGE_TONE } from './cardChrome'
 import GuestAvatar from './GuestAvatar'
 import Button from '../Button'
 import ConfirmModal from '../ConfirmModal'
-import { GridIcon } from '../icons/NavIcons'
+import { GridIcon, UserIcon } from '../icons/NavIcons'
 import {
   SearchIcon,
   PlusIcon,
@@ -20,6 +20,7 @@ import {
   CheckmarkIcon,
   MinusIcon,
   DownloadIcon,
+  CloseIcon,
 } from '../icons/UiIcons'
 import GuestFilterPopover, {
   type InviteFilter,
@@ -30,7 +31,8 @@ import GuestFilterPopover, {
   type OrganizationFilter,
   type RsvpFilter,
 } from './GuestFilterPopover'
-import FloatingMenu from '../FloatingMenu'
+import SegmentedToggle from '../SegmentedToggle'
+import FloatingMenu, { MenuItem } from '../FloatingMenu'
 import type { ToastTone } from '../Toast'
 
 // Card view's own page size scales with however many columns are actually
@@ -193,6 +195,22 @@ function formatAdded(iso: string | undefined): string {
 // guest's profile, the one purpose this view has now.
 export default function GuestsView({ eventId, guests, seatById, groups, onToast, onViewProfile, onAddGuest }: GuestsViewProps) {
   const [query, setQuery] = useState('')
+  // Collapsed search — a round button at rest, the full field only once
+  // opened. Collapsing always clears the query with it, so a hidden filter
+  // can never silently narrow the list behind an innocent-looking roster.
+  const [searchOpen, setSearchOpen] = useState(false)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  // Autofocus the moment it expands — one tap to start typing, not
+  // tap-then-tap.
+  useEffect(() => {
+    if (searchOpen) searchInputRef.current?.focus()
+  }, [searchOpen])
+
+  function closeSearch() {
+    setQuery('')
+    setSearchOpen(false)
+  }
   const [inviteFilter, setInviteFilter] = useState<InviteFilter>('all')
   const [seatFilter, setSeatFilter] = useState<SeatFilter>('all')
   const [checkinFilter, setCheckinFilter] = useState<CheckinFilter>('all')
@@ -401,43 +419,75 @@ export default function GuestsView({ eventId, guests, seatById, groups, onToast,
         </div>
       </div>
 
-      {/* Search bar with the card/table switch built in (rather than a
-          separate segmented control taking its own row) — see the artifact
-          concept this was picked from ("1B"): a compact icon toggle, denser
-          grid, since this view no longer shares the page with the seat map
-          and has room to actually use. */}
-      <div className="mb-3 flex items-center gap-2 rounded-full bg-white px-4 py-2.5 shadow-sm">
-        <SearchIcon className="h-4 w-4 shrink-0 text-icon-gray" />
-        <input
-          type="text"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search guests"
-          className="w-full min-w-0 bg-transparent text-sm text-ink-900 outline-none placeholder:text-muted"
-        />
-        <div className="flex shrink-0 items-center gap-0.5 rounded-lg border border-black/10 bg-white p-0.5">
-          <button
-            type="button"
-            onClick={() => setViewMode('card')}
-            aria-label="Card view"
-            aria-pressed={viewMode === 'card'}
-            className={`flex h-9 w-8 items-center justify-center rounded-md transition ${
-              viewMode === 'card' ? 'bg-rail text-accent-700' : 'text-icon-gray hover:text-ink-900'
+      {/* Expanding search — a round glass button at rest (the same
+          white/20 + white/40-border glass the filter trigger already uses,
+          not the old permanently-wide white bar) that stretches into the
+          full field on click via a max-width transition. The card/table
+          toggle moved out alongside as its own box rather than riding
+          inside the expanding field. */}
+      <div className="mb-3 flex items-center gap-2">
+        <div
+          onClick={() => {
+            if (!searchOpen) setSearchOpen(true)
+          }}
+          onKeyDown={(e) => {
+            if (!searchOpen && (e.key === 'Enter' || e.key === ' ')) {
+              e.preventDefault()
+              setSearchOpen(true)
+            }
+          }}
+          role={searchOpen ? undefined : 'button'}
+          tabIndex={searchOpen ? -1 : 0}
+          aria-label={searchOpen ? undefined : 'Search guests'}
+          className={`flex h-10 min-w-0 items-center overflow-hidden rounded-full border border-white/40 bg-white/20 shadow-sm transition-[max-width,background-color] duration-300 ease-out ${
+            searchOpen ? 'max-w-full flex-1 hover:bg-white/30' : 'max-w-10 flex-none cursor-pointer hover:bg-white/40'
+          }`}
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center text-icon-gray">
+            <SearchIcon className="h-4 w-4" />
+          </span>
+          <input
+            ref={searchInputRef}
+            type="text"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            onBlur={() => {
+              if (!query.trim()) setSearchOpen(false)
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') closeSearch()
+            }}
+            placeholder="Search guests"
+            aria-label="Search guests"
+            tabIndex={searchOpen ? 0 : -1}
+            className={`min-w-0 flex-1 bg-transparent text-sm text-ink-900 outline-none transition-opacity duration-200 placeholder:text-muted ${
+              searchOpen ? 'opacity-100' : 'pointer-events-none opacity-0'
             }`}
-          >
-            <GridIcon className="h-3.5 w-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => setViewMode('table')}
-            aria-label="Table view"
-            aria-pressed={viewMode === 'table'}
-            className={`flex h-9 w-8 items-center justify-center rounded-md transition ${
-              viewMode === 'table' ? 'bg-rail text-accent-700' : 'text-icon-gray hover:text-ink-900'
-            }`}
-          >
-            <TableIcon className="h-3.5 w-3.5" />
-          </button>
+          />
+          {searchOpen && query && (
+            <button
+              type="button"
+              aria-label="Clear search"
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={closeSearch}
+              className="mr-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-icon-gray transition hover:bg-black/5 hover:text-ink-900"
+            >
+              <CloseIcon className="h-3.5 w-3.5" />
+            </button>
+          )}
+        </div>
+        {/* Card/table view — the shared segmented toggle (sliding pill),
+            icon-only so it stays compact beside the search. */}
+        <div className="shrink-0">
+          <SegmentedToggle<ViewMode>
+            ariaLabel="Guest list layout"
+            options={[
+              { key: 'card', label: 'Card view', icon: GridIcon, hideLabel: true },
+              { key: 'table', label: 'Table view', icon: TableIcon, hideLabel: true },
+            ]}
+            value={viewMode}
+            onChange={setViewMode}
+          />
         </div>
       </div>
 
@@ -706,29 +756,25 @@ function RowActionsMenu({ guest, open, onOpenChange, onViewProfile, onRemove }: 
         open={open}
         onClose={() => onOpenChange(false)}
         anchorRef={triggerRef}
-        className="w-44 overflow-hidden rounded-xl bg-white py-1 shadow-xl ring-1 ring-black/5"
+        className="w-48 overflow-hidden rounded-2xl border border-white/60 bg-cream/90 p-1.5 shadow-[0_16px_40px_-12px_rgba(16,30,51,0.35)] backdrop-blur-xl"
       >
-        <button
-          type="button"
+        <MenuItem
+          icon={UserIcon}
+          label="View profile"
           onClick={() => {
             onOpenChange(false)
             onViewProfile()
           }}
-          className="block w-full px-3.5 py-2 text-left text-sm font-medium text-ink-900 transition hover:bg-black/5"
-        >
-          View profile
-        </button>
-        <div className="my-1 h-px bg-black/5" />
-        <button
-          type="button"
+        />
+        <MenuItem
+          icon={CloseIcon}
+          label="Remove guest"
+          tone="danger"
           onClick={() => {
             onOpenChange(false)
             onRemove()
           }}
-          className="block w-full px-3.5 py-2 text-left text-sm font-medium text-status-declined transition hover:bg-status-declined/10"
-        >
-          Remove guest
-        </button>
+        />
       </FloatingMenu>
     </div>
   )

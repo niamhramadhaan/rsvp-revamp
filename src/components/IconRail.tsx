@@ -1,10 +1,11 @@
 import { memo, useCallback, useState, type ComponentType, type SVGProps } from 'react'
-import { HouseIcon, TicketIcon, UsersIcon, PowerIcon } from './icons/NavIcons'
+import { HouseIcon, TicketIcon, UsersIcon, PowerIcon, UserIcon } from './icons/NavIcons'
 import { LockIcon } from './icons/UiIcons'
 import LogoutModal from './LogoutModal'
+import UserIdCardModal from './UserIdCardModal'
 import Toast, { type ToastState, type ToastTone } from './Toast'
 import Tooltip from './Tooltip'
-import { useCanAccess } from '../data/hooks'
+import { useCanAccess, useProfile } from '../data/hooks'
 import { signOut } from '../data/session'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
@@ -116,6 +117,8 @@ function IconRail({ activePage, onNavigate }: IconRailProps) {
   const [toast, setToast] = useState<ToastState | null>(null)
   const showToast = useCallback((message: string, tone: ToastTone = 'success') => setToast({ message, tone }), [])
   const [logoutOpen, setLogoutOpen] = useState(false)
+  const [profile] = useProfile()
+  const [idCardOpen, setIdCardOpen] = useState(false)
   // "Users & Roles" (see SettingsPage) is just accounts + the permission
   // matrix now, an admin-only concern, so the whole menu locks rather than
   // one section inside it. `canOpenSettings`/`'settings'` names kept as-is —
@@ -124,11 +127,12 @@ function IconRail({ activePage, onNavigate }: IconRailProps) {
 
   return (
     <>
-      {/* Mobile/tablet (<lg): unchanged edge-to-edge horizontal bar — logo,
-          scrollable nav row, utility group, all in one strip. There isn't
-          room at this width for the lg: layout's separate floating cards
-          below, so this stays exactly what it always was. */}
-      <aside className="relative flex w-full shrink-0 items-center justify-between gap-3 rounded-b-2xl bg-nav-rail px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))] lg:hidden">
+      {/* Mobile/tablet (<lg): a floating glass bar — the same white-glass
+          capsule language the desktop rail and the bottom dock already use
+          (not the old solid-blue edge-to-edge strip), with safe-area margin
+          above it. Carries the profile avatar too now that TopHeader (its
+          old home) is desktop-only — tapping it opens the same ID card. */}
+      <aside className="mx-3 mt-[max(0.75rem,env(safe-area-inset-top))] flex shrink-0 items-center justify-between gap-2 rounded-[28px] border border-white/60 bg-white/90 px-3 py-2 shadow-[0_16px_40px_-12px_rgba(16,30,51,0.35)] backdrop-blur-xl lg:hidden">
         {/* The real Gamefinity brand mark (served straight from /public,
             same convention TicketCard's own footer logo already uses) —
             not LogoMark's hand-drawn abstract triangle, which stays put
@@ -137,32 +141,47 @@ function IconRail({ activePage, onNavigate }: IconRailProps) {
             can't do). */}
         <img src="/gamefinity icon.png" alt="Gamefinity" className="h-8 w-8 shrink-0 object-contain" />
 
-        <nav className="flex min-w-0 flex-1 items-center gap-2 overflow-x-auto">
+        <nav className="no-scrollbar flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
           {NAV_ITEMS.map((item) => (
             <NavButton
               key={item.label}
               icon={item.icon}
               label={item.label}
+              glass
               active={item.page === activePage}
               onClick={() => onNavigate(item.page)}
             />
           ))}
-
-          <div className="mx-1 h-6 w-px shrink-0 bg-white/15" />
         </nav>
 
-        <div className="flex shrink-0 gap-2">
+        <div className="flex shrink-0 items-center gap-1">
           <NavButton
             icon={UsersIcon}
             label="Users & Roles"
+            glass
             active={activePage === 'settings'}
             locked={!canOpenSettings}
             onClick={() => onNavigate('settings')}
           />
+          {/* Photo only — moved here from TopHeader when that header went
+              desktop-only: a phone still needs a way to open its ID card. */}
+          <button
+            type="button"
+            onClick={() => setIdCardOpen(true)}
+            aria-label="Profile"
+            className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-black/5 text-icon-gray transition active:scale-[0.97]"
+          >
+            {profile.imageUrl ? (
+              <img src={profile.imageUrl} alt={profile.name} className="h-full w-full object-cover" />
+            ) : (
+              <UserIcon className="h-5 w-5" />
+            )}
+          </button>
           <NavButton
             icon={PowerIcon}
             label="Log out"
-            className="text-white hover:bg-red-500"
+            glass
+            className="text-ink-900/70 hover:bg-status-declined hover:text-white"
             onClick={() => setLogoutOpen(true)}
           />
         </div>
@@ -241,6 +260,8 @@ function IconRail({ activePage, onNavigate }: IconRailProps) {
       </div>
 
       <Toast toast={toast} />
+
+      <UserIdCardModal open={idCardOpen} onClose={() => setIdCardOpen(false)} />
 
       <LogoutModal
         open={logoutOpen}
