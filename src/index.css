@@ -1,0 +1,312 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", system-ui, "Segoe UI", Roboto, sans-serif;
+  /* Bold display face for bento-style stat numerals (Nothing OS widget style,
+     adapted — see plan.md). Was Space Mono (a literal monospace, for that
+     "dot-matrix" technical flavor); swapped to Plus Jakarta Sans per request
+     — still distinct from the surrounding Poppins body copy, just no longer
+     monospaced, so the token's renamed from --font-mono to --font-display. */
+  --font-display: "Plus Jakarta Sans", "Poppins", system-ui, sans-serif;
+
+  /* ink / text — dark navy derived from the Gamefinity mark's outline (#180C00) blended toward the brand blue for legibility as body copy */
+  --color-ink-900: #101e33;
+  --color-ink-800: #1b3350;
+  --color-ink-700: #2a4a6b;
+  --color-ink-600: #3b6288;
+
+  /* body / secondary text + icon gray — cooled to a blue-gray family.
+     --color-muted darkened from #7c90a6 — the original only cleared ~3:1
+     against the light glass widget backgrounds, failing WCAG AA (4.5:1) for
+     the small caption/label text it's used for. */
+  --color-body: #51606f;
+  --color-body-light: #3c4750;
+  --color-muted: #4d6580;
+  --color-icon-gray: #b7c3ce;
+
+  /* Gamefinity brand blue — sampled from GAMEFI 1 Logo High Ress.png (wordmark = #0060A8) */
+  --color-accent-700: #0060a8;
+  --color-accent-600: #2e86c1;
+
+  /* Gamefinity accent cyan — sampled from the logo's infinity mark (#3CA8D8 / #54B4F0) */
+  --color-accent-cyan: #3ca8d8;
+  --color-accent-cyan-light: #54b4f0;
+
+  /* IconRail's own background — a softened, lightened accent-700 (mixed
+     30% toward white), not the flat brand blue used for buttons/active
+     pills. A large sidebar surface painted in the same fully-saturated blue
+     as small accents/buttons read as too bold; this keeps the same hue
+     family (so it still visibly "matches" the page wash) while being
+     gentle enough to sit behind icons all day. Deliberately not lightened
+     further than this: white icons/logo need enough contrast against it to
+     stay legible without switching to dark icons instead. */
+  --color-nav-rail: #4d90c2;
+
+  /* backgrounds */
+  --color-page: #f6f9fc;
+  --color-panel: #fbfdff;
+  --color-panel-2: #fcfeff;
+  --color-rail: #eff4f9;
+
+  /* Warm neutral card surface — the "color balance" fix borrowed from a
+     reference app whose page/card pairing was cool sky-blue behind a warm
+     cream card, versus this app's previous cool-blue-behind-white (cool on
+     cool, which read flatter next to the page wash than intended). Applied
+     to the shared card/surface recipes only (GLASS_CARD, PageStage,
+     DrawerPanel, TopHeader, EventsPage's own cards, EventBanner's glass
+     overlay) — the rail, buttons, and active-state pills keep their brand
+     blue/navy untouched, per the "surgical" option picked over two bolder
+     alternatives that also re-mapped those. */
+  --color-cream: #f8f1e4;
+
+  /* soft badge/panel backgrounds — blue-tinted (kept the "lavender" token names to avoid renaming every usage site) */
+  --color-lavender: #dceaf7;
+  --color-lavender-2: #eaf3fb;
+  --color-lavender-3: #e3effa;
+
+  /* status colors — for upcoming RSVP/check-in states (confirmed/declined/pending), standard semantic hues rather than brand blue so they stay distinguishable from primary actions.
+     Darkened from the first pass — the originals only cleared ~3:1 against the light glass widget backgrounds (fine for large text, failed WCAG AA at the small badge-text sizes they're also used at); these clear 4.5:1+ against both pure white and the glass composite. */
+  --color-status-confirmed: #106647;
+  --color-status-declined: #b8362b;
+  --color-status-pending: #8a6414;
+
+  /* A fifth status hue — "needs a discretionary human call," distinct from
+     both status-declined (a settled, bad outcome) and status-pending
+     (routine, hasn't-happened-yet waiting). Two real states were sharing a
+     hue with something they don't actually mean: ReportsView's no-show bar
+     segment borrowed status-declined at full strength (a no-show guest
+     *said yes* — grouping them visually with "declined" reversed the
+     meaning), and CheckInDrawer's walk-in card borrowed status-pending (the
+     same amber as a harmless duplicate-scan notice, despite being the one
+     check-in state that's an active go/no-go decision for staff, not a
+     routine wait). Burnt-orange rather than a second red or a second gold —
+     clears 4.5:1 against white/cream at this darkness, same bar every other
+     status color here already clears. */
+  --color-status-exception: #a3540f;
+}
+
+/* Registers --panel-w (DashboardLayout's drawer push-panel width) as an
+   animatable length. Plain custom properties have no interpolable type, so
+   a transition on `grid-template-columns: 1fr var(--panel-w)` would
+   otherwise just snap between values the instant --panel-w changes,
+   instead of the smooth 300ms slide the rest of the app's drawers/modals
+   use — this tells the browser it's a <length> it can tween. */
+@property --panel-w {
+  syntax: '<length>';
+  inherits: false;
+  initial-value: 0px;
+}
+
+/* EventBanner's own idle motion — a slow, small bob (transform-only, so it's
+   compositor-cheap even running continuously) rather than a static hero.
+   Kept deliberately subtle: this is ambiance, not something that should
+   distract from the countdown/edit affordances riding along on top of it. */
+@keyframes banner-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-5px); }
+}
+
+/* A tile's value just changed (StatTiles/ReportsView's shared KpiTile) — one
+   quick wash in the direction color (green rising, red falling), then gone.
+   Finite (no `infinite`), same rule every other one-shot state-change
+   flourish in this app follows (see the checkin-* keyframes below). */
+@keyframes kpi-flash {
+  0% { opacity: 0; }
+  25% { opacity: 1; }
+  100% { opacity: 0; }
+}
+
+/* Shared list-entrance beat — RecentActivityFeed's rows and GuestsView's
+   cards fade+rise in with a per-index delay set inline (capped, so a long
+   list doesn't make the last row wait seconds to appear). */
+@keyframes stagger-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* This layout never legitimately needs horizontal page scroll (the
+   dashboard's own scrolling happens inside <main>). Drawer/Modal stay
+   permanently mounted and merely translate off-screen to the right when
+   closed (see Drawer.tsx) — that off-canvas content can otherwise still
+   register in the viewport's scrollable area on some engines, producing a
+   phantom horizontal scrollbar that reveals it. Clipping at the root is a
+   safe, general hardening against that whole class of bug. */
+html {
+  overflow-x: hidden;
+}
+
+body {
+  margin: 0;
+  overflow-x: hidden;
+  background: var(--color-page);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Check-in tab illustrations (CheckInResultCard) — every one below is a
+   finite, few-iteration playback (never `infinite`), matching the
+   performance lesson learned earlier in this project (see plan.md rounds
+   7-9): a continuously-running animation is a real, ongoing cost, so these
+   play their welcome/warning gesture a couple of times and then rest,
+   rather than looping forever underneath a card the staff might leave open. */
+@keyframes checkin-pop {
+  0% { transform: scale(0.5) rotate(-8deg); opacity: 0; }
+  60% { transform: scale(1.08) rotate(2deg); opacity: 1; }
+  100% { transform: scale(1) rotate(0deg); opacity: 1; }
+}
+
+@keyframes checkin-draw {
+  from { stroke-dashoffset: 44; }
+  to { stroke-dashoffset: 0; }
+}
+
+@keyframes checkin-shake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-4px); }
+  40% { transform: translateX(4px); }
+  60% { transform: translateX(-3px); }
+  80% { transform: translateX(3px); }
+}
+
+@keyframes checkin-bob {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+@keyframes checkin-ring {
+  0% { transform: scale(0.7); opacity: 0.5; }
+  100% { transform: scale(1.7); opacity: 0; }
+}
+
+@keyframes checkin-confetti {
+  0% { transform: translate(0, 0) rotate(0deg); opacity: 1; }
+  100% { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity: 0; }
+}
+
+/* CheckInResultCard's own post-swipe "confirming" bar (ReadyCard) — a
+   determinate 3s fill, `transform: scaleX` (not `width`) so it stays
+   compositor-cheap, same "transform/opacity, not layout properties" bias
+   every other animation in this app already follows. */
+@keyframes checkin-progress-fill {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+/* QrScanner's scan-line — the one deliberately-`infinite` animation in this
+   app (everything else above is finite, see the check-in comment). This is
+   the exception the same way a loading spinner is: it communicates a real,
+   ongoing state ("still watching for a code") for as long as the camera is
+   actually open, not decoration layered on inert content. Percentage
+   translateY, not `top` — moves the wrapper by its own height (100% of the
+   scan-frame it's sized to), so it's still transform-only/compositor-cheap
+   and automatically matches the frame's actual rendered size at any
+   viewport width without any JS measuring. */
+@keyframes qr-scanline {
+  0%, 100% { transform: translateY(0%); }
+  50% { transform: translateY(calc(100% - 2px)); }
+}
+
+/* Button.tsx's `progress="loading"` sweep — a second legitimate `infinite`
+   animation alongside qr-scanline's own (see that keyframe's doc): it
+   communicates a real ongoing save/import in flight, for exactly as long as
+   that stays true, not decoration on something inert. Percentage transform
+   only (no width/left tweening), so it stays compositor-cheap regardless of
+   how wide the button actually renders. */
+@keyframes button-progress-sweep {
+  0% { transform: translateX(-120%); }
+  100% { transform: translateX(320%); }
+}
+
+/* AuroraText's own gradient sweep (components/ui/aurora-text.tsx) — a plain
+   background-position drift across a 200%-wide gradient clipped to the
+   text. Deliberately infinite (per explicit request, replacing the event
+   switcher's earlier sparkle effect) rather than this app's usual "finite
+   unless it signals real ongoing state" default — see qr-scanline/
+   button-progress-sweep just below for that default's own two exceptions;
+   this is a third, on a persistent always-visible piece of chrome. */
+@keyframes aurora-sweep {
+  from { background-position: 0% center; }
+  to { background-position: 200% center; }
+}
+
+/* GuestPrintCard's own "print only this element" isolation — the
+   bulletproof CSS trick for printing one thing on a page that has a whole
+   dashboard SPA as its other siblings: hide everything (via `visibility`,
+   not `display:none`, so nothing's box collapses and reflows the rest of
+   the print layout), then un-hide only the print target and lift it out of
+   flow so it lands on the page by itself. Tailwind's own `print:` variant
+   (a real Tailwind media-query variant, not a custom class — see
+   GuestPrintCard's own use of it) handles hiding the on-screen-only
+   buttons/backdrop right on those elements; this global rule is the one
+   thing that can't be expressed that way, since "hide every OTHER element
+   in the document" isn't a per-element utility. */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  .print-card-root,
+  .print-card-root * {
+    visibility: visible;
+  }
+  .print-card-root {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+  }
+}
+
+/* No visible scrollbar anywhere in this app, on any of its scrolling
+   surfaces (#dashboard-main, the Drawer body, the seat map canvas's free-form
+   pan area) — per the product owner, content still scrolls exactly the same,
+   it just doesn't need a drawn affordance to prove it. Same idea
+   GuestSeatingList's row list already used its own way (a hidden native
+   scrollbar + an edge-fade mask, see useScrollEdges.ts) — this is the plain
+   version of that same call for surfaces that don't need the fade. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+
+/* The deliberate opposite of .no-scrollbar above — ComboField's own small
+   floating suggestion list. A short popup genuinely benefits from a real
+   scroll affordance telling the user there's more below (the same reason a
+   native <select>'s own dropdown always draws one), and it's a self-
+   contained popup, not a page-level surface, so it doesn't compete with
+   this app's "no scrollbar chrome" rule for the dashboard itself. Thin and
+   accent-tinted rather than the OS default gray bar. */
+.combo-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in srgb, var(--color-accent-700) 45%, transparent) transparent;
+}
+
+.combo-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.combo-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.combo-scrollbar::-webkit-scrollbar-thumb {
+  background-color: color-mix(in srgb, var(--color-accent-700) 45%, transparent);
+  border-radius: 999px;
+}
+
+/* Every transition in the app (drawer/modal enter, popover scale-in, button
+   press feedback, hover lifts) is transform/opacity-based, so a blanket
+   near-zero override here is safe and correct: state changes still happen
+   (nothing just vanishes), they just happen instantly instead of animating,
+   which is what "reduced," not "removed," motion means. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
