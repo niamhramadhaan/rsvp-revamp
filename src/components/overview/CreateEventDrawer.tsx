@@ -3,6 +3,7 @@ import DrawerPanelPortal from '../DrawerPanelPortal'
 import Button, { type ButtonProgress } from '../Button'
 import { LabeledField, LabeledTextArea, FieldGroup, BannerImageField, LogoImageField } from '../GroupedField'
 import { createEvent } from '../../data/events'
+import { playSound } from '../../utils/sound'
 import { PlusIcon, CalendarIcon } from '../icons/UiIcons'
 import { TicketIcon } from '../icons/NavIcons'
 import type { Event } from '../../data/types'
@@ -86,6 +87,7 @@ export default function CreateEventDrawer({ open, onClose, onCreated }: CreateEv
       pendingEventRef.current = event
       setProgress('success')
     } catch {
+      playSound('error')
       setError('Could not create the event — your browser storage may be full. Try removing the photo or freeing up space.')
       setProgress('idle')
     }

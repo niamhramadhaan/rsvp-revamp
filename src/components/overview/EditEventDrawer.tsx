@@ -4,6 +4,7 @@ import Button, { type ButtonProgress } from '../Button'
 import { LabeledField, LabeledTextArea, FieldGroup, BannerImageField, LogoImageField } from '../GroupedField'
 import { InfoTooltip } from '../Tooltip'
 import { updateEvent } from '../../data/events'
+import { playSound } from '../../utils/sound'
 import { PencilIcon, CalendarIcon, MailIcon, ChevronRightIcon } from '../icons/UiIcons'
 import { TicketIcon } from '../icons/NavIcons'
 import type { Event } from '../../data/types'
@@ -145,6 +146,7 @@ function EditEventFields({ formId, event, onProgress, onSaveResult, onOpenInvita
       if (updated) onSaveResult(updated)
       onProgress('success')
     } catch {
+      playSound('error')
       setError('Could not save — your browser storage may be full. Try removing the photo or freeing up space.')
       onProgress('idle')
     }

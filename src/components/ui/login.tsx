@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react'
 import { GradientBackground } from './favorites'
 import { signIn, verifyCredentials } from '../../data/session'
+import { playSound } from '../../utils/sound'
 
 // The sign-in gate — App.tsx renders this instead of the dashboard while
 // there's no session (see session.ts). The supplied MercuryLogin look, kept:
@@ -87,6 +88,7 @@ export default function LoginPage() {
     // instantly — the loading bar only ever plays for credentials that
     // will actually sign in.
     if (!verifyCredentials(email, password)) {
+      playSound('error')
       setError('No account matches that email and password.')
       return
     }
@@ -95,6 +97,7 @@ export default function LoginPage() {
     timer.current = window.setTimeout(() => {
       // Writes the session key: App mounts the dashboard underneath and
       // crossfades this gate away (see App.tsx).
+      playSound('unlock')
       signIn(email, password)
     }, LOADING_MS)
   }

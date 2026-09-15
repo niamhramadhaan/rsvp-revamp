@@ -7,6 +7,7 @@ import Toast, { type ToastState, type ToastTone } from './Toast'
 import Tooltip from './Tooltip'
 import { useCanAccess, useProfile } from '../data/hooks'
 import { signOut } from '../data/session'
+import { playSound } from '../utils/sound'
 
 type IconComponent = ComponentType<SVGProps<SVGSVGElement>>
 
@@ -268,6 +269,7 @@ function IconRail({ activePage, onNavigate }: IconRailProps) {
         onClose={() => setLogoutOpen(false)}
         onConfirm={() => {
           setLogoutOpen(false)
+          playSound('lock')
           // Clearing the session key drops App back to the login gate via
           // its own useSessionUser subscription — no navigation needed.
           signOut()

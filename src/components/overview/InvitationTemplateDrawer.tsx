@@ -5,6 +5,7 @@ import { LabeledTextArea, FieldGroup, BannerImageField } from '../GroupedField'
 import { InfoTooltip } from '../Tooltip'
 import { updateInvitationTemplate } from '../../data/events'
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator'
+import { playSound } from '../../utils/sound'
 import { UploadIcon, CloseIcon, MailIcon } from '../icons/UiIcons'
 import type { Event } from '../../data/types'
 
@@ -101,10 +102,12 @@ function TemplateFields({
   async function handlePdfPick(file: File | undefined) {
     if (!file) return
     if (file.type !== 'application/pdf') {
+      playSound('error')
       setPdfError('Choose a PDF file.')
       return
     }
     if (file.size > PDF_MAX_BYTES) {
+      playSound('error')
       setPdfError(`That PDF is too big (max ${Math.round(PDF_MAX_BYTES / 1024 / 1024)}MB) — this app stores it inline, and a bigger file risks hitting your browser's own storage limit.`)
       return
     }
@@ -126,6 +129,7 @@ function TemplateFields({
       onProgress('success')
       onClose()
     } catch {
+      playSound('error')
       setError('Could not save — your browser storage may be full.')
       onProgress('idle')
     }
@@ -144,7 +148,10 @@ function TemplateFields({
         <button
           type="button"
           data-tab-key="message"
-          onClick={() => setMode('message')}
+          onClick={() => {
+            if (mode !== 'message') playSound('select')
+            setMode('message')
+          }}
           className={`relative z-10 flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
             mode === 'message' ? 'text-ink-900' : 'text-ink-900/60 hover:text-ink-900'
           }`}
@@ -154,7 +161,10 @@ function TemplateFields({
         <button
           type="button"
           data-tab-key="email"
-          onClick={() => setMode('email')}
+          onClick={() => {
+            if (mode !== 'email') playSound('select')
+            setMode('email')
+          }}
           className={`relative z-10 flex-1 rounded-lg px-3 py-2 text-xs font-semibold transition-colors ${
             mode === 'email' ? 'text-ink-900' : 'text-ink-900/60 hover:text-ink-900'
           }`}

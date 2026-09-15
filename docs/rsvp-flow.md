@@ -71,14 +71,14 @@ flowchart TD
 ## End-to-end scenario — Minicinema Press Conference
 
 Real-case walkthrough for one event, full ecosystem: admin → messaging provider →
-journalist's phone → ticket redemption → door check-in → badge → post-event reporting.
+journalist's phone → door check-in → badge → post-event reporting.
 
 > **Scope note:** the invite-send, check-in, seat-assign and report steps are the real,
 > implemented flow (`SendInvitationsDrawer`, `CheckInDrawer`, `checkin.ts`, `ReportsView`).
-> The **sltr.id redemption microsite** (guest self-service RSVP + digital ticket) is not in
-> this codebase today — it's drawn here as the target/real-world flow this diagram was asked
-> to model, since it's the piece that actually closes the loop between "invite sent" and
-> "guest shows up with a valid ticket." Treat that lane as proposed, everything else as built.
+> There is no guest-facing redemption step and no external site — the invite code and a
+> barcode image are embedded directly in the WA/Email message the guest receives, and that
+> same message is what they show at the door. Nothing closes the loop except the invite
+> itself; everything below is the built flow, not a proposed one.
 
 ```mermaid
 %%{init: {
@@ -114,18 +114,17 @@ sequenceDiagram
   participant Dash as Dashboard (this app)
   participant WA as NetMessage / WhatsApp
   actor Press as Guest (Journalist/Press)
-  participant Sltr as sltr.id (redemption site)
   participant DB as Store (guest records)
   actor Staff as Staff (door)
-  participant Scan as QR Scanner
+  participant Scan as QR / Barcode Scanner
   participant Badge as Printed Badge
 
   rect rgba(234,243,251,0.5)
   Note over Admin,DB: Pre-event setup
   Admin->>Dash: Create event "Minicinema Press Conference"
   Admin->>Dash: Import press/media roster (bulk Excel)
-  Dash->>DB: generate invite token per guest (e.g. QRT-92F)
-  Admin->>Dash: Author WA template incl. sltr.id/{token} link
+  Dash->>DB: generate invite token + barcode per guest (e.g. QRT-92F)
+  Admin->>Dash: Author WA/Email template — code + barcode image embedded in the message
   end
 
   rect rgba(227,239,250,0.5)
@@ -133,24 +132,13 @@ sequenceDiagram
   Admin->>Dash: Send invitations (channel: WA)
   Dash->>WA: dispatch batch
   Dash->>DB: mark invites.wa = sent
-  WA->>Press: "You're invited — Minicinema Press Conference.<br/>Redeem your pass: sltr.id/QRT-92F"
-  end
-
-  rect rgba(248,241,228,0.5)
-  Note over Press,DB: Guest redeems ticket (self-service)
-  Press->>Sltr: open sltr.id/QRT-92F on phone
-  Sltr->>DB: lookup token QRT-92F
-  DB-->>Sltr: event details + guest profile
-  Sltr-->>Press: show event card + "Konfirmasi Kehadiran"
-  Press->>Sltr: tap Accept
-  Sltr->>DB: rsvpStatus = accepted, ticket redeemed
-  Sltr-->>Press: digital QR ticket (save to phone/wallet)
+  WA->>Press: "You're invited — Minicinema Press Conference.<br/>Your code: QRT-92F<br/>[barcode image]"
   end
 
   rect rgba(227,239,250,0.5)
   Note over Press,Badge: Event day — door check-in
-  Press->>Staff: arrives at venue, shows QR ticket
-  Staff->>Scan: scan QR (CheckInDrawer)
+  Press->>Staff: arrives at venue, shows barcode from invite message
+  Staff->>Scan: scan barcode (CheckInDrawer)
   Scan->>Dash: decoded token
   Dash->>DB: checkInGuest() stamps checkedInAt/By
   Staff->>Badge: print boarding-pass badge
@@ -160,7 +148,7 @@ sequenceDiagram
   rect rgba(234,243,251,0.5)
   Note over Admin,Dash: Post-event
   Admin->>Dash: open Reports
-  Dash-->>Admin: funnel — invited / redeemed / declined / checked-in, by outlet
+  Dash-->>Admin: funnel — invited / declined / checked-in, by outlet
   end
 ```
 

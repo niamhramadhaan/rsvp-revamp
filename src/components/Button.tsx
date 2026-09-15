@@ -1,5 +1,6 @@
-import { useEffect, useState, type ButtonHTMLAttributes } from 'react'
+import { useEffect, useState, type ButtonHTMLAttributes, type MouseEvent } from 'react'
 import { CheckmarkIcon } from './icons/UiIcons'
+import { playSound } from '../utils/sound'
 
 export type ButtonVariant = 'primary' | 'dark' | 'ghost' | 'destructive' | 'destructive-ghost'
 
@@ -71,9 +72,17 @@ export default function Button({
   onProgressSettle,
   disabled,
   children,
+  onMouseEnter,
   ...rest
 }: ButtonProps) {
   const [showSuccess, setShowSuccess] = useState(false)
+
+  const isDisabled = disabled || progress === 'loading' || showSuccess
+
+  function handleMouseEnter(e: MouseEvent<HTMLButtonElement>) {
+    if (!isDisabled) playSound('hover', 0.06)
+    onMouseEnter?.(e)
+  }
 
   // Keyed on `progress` itself (not a ref-tracked "did it just change"
   // flag) — this only re-runs when the prop value actually changes, so it
@@ -95,7 +104,8 @@ export default function Button({
   return (
     <button
       type={type}
-      disabled={disabled || isLoading || showSuccess}
+      disabled={isDisabled}
+      onMouseEnter={handleMouseEnter}
       className={`relative overflow-hidden rounded-full text-sm font-semibold transition active:scale-[0.97] disabled:opacity-60 ${VARIANT_CLASSES[variant]} ${className}`}
       {...rest}
     >

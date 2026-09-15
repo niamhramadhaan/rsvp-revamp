@@ -1,6 +1,7 @@
-import { useEffect, useId, useState, type ComponentType, type ReactNode, type SVGProps } from 'react'
+import { useEffect, useId, useRef, useState, type ComponentType, type ReactNode, type SVGProps } from 'react'
 import { createPortal } from 'react-dom'
 import { useDrawerPanel } from './DrawerPanelContext'
+import { playSound } from '../utils/sound'
 
 export interface DrawerPanelPortalProps {
   open: boolean
@@ -37,13 +38,25 @@ export default function DrawerPanelPortal({ open, onClose, title, icon, children
   // active one should occupy the shared body slot).
   const [renderPortal, setRenderPortal] = useState(open)
 
+  // Every DrawerPanelPortal instance stays mounted for the app's whole
+  // lifetime (see the comment above), so this effect's first run is just
+  // "whatever `open` happened to start as" for every drawer at once, not a
+  // real open/close — that guard is what stops page load from playing a
+  // sound for every never-opened drawer in the tree.
+  const mounted = useRef(false)
+
   useEffect(() => {
+    const playTransitionSound = mounted.current
+    mounted.current = true
+
     if (open) {
       setRenderPortal(true)
       openDrawer(id)
+      if (playTransitionSound) playSound('open')
       return
     }
     closeDrawer(id)
+    if (playTransitionSound) playSound('close')
     const timeout = window.setTimeout(() => setRenderPortal(false), 300)
     return () => window.clearTimeout(timeout)
   }, [open, openDrawer, closeDrawer, id])

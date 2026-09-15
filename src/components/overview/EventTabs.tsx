@@ -1,8 +1,9 @@
 import { useRef, useState, type ComponentType, type SVGProps } from 'react'
 import { CompassIcon, UsersIcon } from '../icons/NavIcons'
 import { ChartIcon, SeatingChartIcon, QrCheckIcon } from '../icons/UiIcons'
-import { useCanAccess, useCurrentEvent, useProfile } from '../../data/hooks'
+import { useCanAccess, useCurrentEvent } from '../../data/hooks'
 import { useSlidingIndicator } from '../../hooks/useSlidingIndicator'
+import { playSound } from '../../utils/sound'
 import { EventSwitchSheet } from '../EventSwitcher'
 import type { DashboardSection } from '../../data/types'
 
@@ -92,18 +93,22 @@ export default function EventTabs({ activeKey, onTabChange, onScan }: EventTabsP
   const visibleTabs = TABS.filter((tab) => !tab.section || access[tab.section])
   // The dock's own scan slot.
   const showScan = canCheckIn && onScan !== undefined
-  // Staff get the door job only: event slot + scan, no section tabs. The
-  // desktop pill row above keeps whatever visibleTabs resolves (this is a
-  // dock composition decision, not a permission one — useCanAccess still
-  // owns what anyone can actually open).
-  const [profile] = useProfile()
-  const mobileTabs = profile.role === 'admin' ? visibleTabs : []
+  // Staff get the same section tabs as admin here (Overview/Guests/Seating/
+  // Reports) — whatever visibleTabs already resolves via useCanAccess, same
+  // as the desktop pill row. Scan is still the one thing pinned outside the
+  // scrollable menu (see showScan below), not folded into this list.
+  const mobileTabs = visibleTabs
   // The dock's own event slot — the current event's mark, opening the same
   // switch sheet the desktop header's name trigger opens. Lives inside the
   // scrollable menu (not a separate floating circle) so it can never
   // overlap page content the way that circle did.
   const [currentEvent] = useCurrentEvent()
   const [eventSheetOpen, setEventSheetOpen] = useState(false)
+
+  function handleTabChange(key: string) {
+    if (key !== activeKey) playSound('select')
+    onTabChange(key)
+  }
 
   return (
     <>
@@ -137,7 +142,7 @@ export default function EventTabs({ activeKey, onTabChange, onScan }: EventTabsP
               key={tab.key}
               data-tab-key={tab.key}
               type="button"
-              onClick={() => onTabChange(tab.key)}
+              onClick={() => handleTabChange(tab.key)}
               className={`relative z-10 flex items-center gap-2 rounded-xl px-4 py-2.5 text-sm font-medium transition-colors active:scale-[0.97] ${
                 isActive ? 'text-white' : 'text-ink-900/70 hover:bg-white/40 hover:text-ink-900'
               }`}
@@ -210,7 +215,7 @@ export default function EventTabs({ activeKey, onTabChange, onScan }: EventTabsP
                 key={tab.key}
                 data-tab-key={tab.key}
                 type="button"
-                onClick={() => onTabChange(tab.key)}
+                onClick={() => handleTabChange(tab.key)}
                 aria-current={isActive ? 'page' : undefined}
                 // Fixed-width slots (not flex-1): the row scrolls instead
                 // of squeezing, comfortably over the 44px touch minimum.

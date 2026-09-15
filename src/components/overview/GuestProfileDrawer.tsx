@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { AvatarFullConfig } from 'react-nice-avatar'
-import JsBarcode from 'jsbarcode'
 import DrawerPanelPortal from '../DrawerPanelPortal'
+import InviteBarcode from './InviteBarcode'
 import ConfirmModal from '../ConfirmModal'
 import Button, { type ButtonProgress } from '../Button'
 import { LabeledField, ComboField } from '../GroupedField'
@@ -10,6 +10,7 @@ import { deleteGuest, updateGuest } from '../../data/guests'
 import { useAllGuests } from '../../data/hooks'
 import type { Guest, InviteChannelStatus } from '../../data/types'
 import { getGuestStage, distinctSorted } from '../../data/selectors'
+import { playSound } from '../../utils/sound'
 import { STAGE_TONE } from './cardChrome'
 import GuestAvatar, { GuestAvatarPicker } from './GuestAvatar'
 import { UserIcon, BriefcaseIcon } from '../icons/NavIcons'
@@ -52,22 +53,8 @@ function InviteStatusPill({ status }: { status: InviteChannelStatus }) {
 // out for manual check-in). One flip, no auto-rotate — it rests wherever
 // it was left.
 function GuestInvitationCode({ guest }: { guest: Guest }) {
-  const barcodeRef = useRef<SVGSVGElement>(null)
   const [flipped, setFlipped] = useState(false)
   const [copied, setCopied] = useState(false)
-
-  useEffect(() => {
-    if (!barcodeRef.current) return
-    JsBarcode(barcodeRef.current, guest.token, {
-      format: 'CODE128',
-      displayValue: false,
-      background: 'transparent',
-      lineColor: '#101e33',
-      width: 1.6,
-      height: 40,
-      margin: 6,
-    })
-  }, [guest.token])
 
   // Fresh card per guest — flipping for one guest must not carry over to
   // the next profile opened in this same drawer instance.
@@ -89,6 +76,7 @@ function GuestInvitationCode({ guest }: { guest: Guest }) {
       document.execCommand('copy')
       document.body.removeChild(area)
     }
+    playSound('copy')
     setCopied(true)
     window.setTimeout(() => setCopied(false), 1500)
   }
@@ -110,7 +98,7 @@ function GuestInvitationCode({ guest }: { guest: Guest }) {
           }`}
         >
           <span className="flex flex-col items-center gap-1.5 [backface-visibility:hidden]">
-            <svg ref={barcodeRef} role="img" aria-label={`Invitation barcode for ${guest.name}`} className="h-10 w-full max-w-[220px]" />
+            <InviteBarcode value={guest.token} ariaLabel={`Invitation barcode for ${guest.name}`} className="h-10 w-full max-w-[220px]" />
             <span className="text-[11px] font-medium text-muted">Tap to reveal code</span>
           </span>
           <span className="absolute inset-0 flex flex-col items-center justify-center gap-1.5 [backface-visibility:hidden] [transform:rotateY(180deg)]">

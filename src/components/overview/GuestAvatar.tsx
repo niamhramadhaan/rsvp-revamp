@@ -1,6 +1,7 @@
 import { useRef, useState } from 'react'
 import Avatar, { genConfig, type AvatarFullConfig } from 'react-nice-avatar'
 import { compressImage } from '../../utils/imageCompression'
+import { playSound } from '../../utils/sound'
 import Tooltip from '../Tooltip'
 import { ResetIcon, UploadIcon } from '../icons/UiIcons'
 
@@ -108,6 +109,7 @@ export function GuestAvatarPicker({
     setError(null)
     if (!file) return
     if (!file.type.startsWith('image/')) {
+      playSound('error')
       setError('Choose an image file.')
       return
     }
@@ -120,6 +122,7 @@ export function GuestAvatarPicker({
       // around as dead state once it's no longer what's actually shown.
       onAvatarConfigChange(undefined)
     } catch {
+      playSound('error')
       setError('Could not read that image — try a different file.')
     } finally {
       setProcessing(false)

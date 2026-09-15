@@ -1,4 +1,5 @@
-import type { ButtonHTMLAttributes, ComponentType, SVGProps } from 'react'
+import type { ButtonHTMLAttributes, ComponentType, MouseEvent, SVGProps } from 'react'
+import { playSound } from '../utils/sound'
 
 export type IconButtonSize = 'sm' | 'md'
 
@@ -33,11 +34,19 @@ const SIZE_CLASSES: Record<IconButtonSize, { box: string; icon: string }> = {
 // (rounded-full everywhere except a couple of stray rounded-lg/rounded-xl
 // outliers). Two sizes now, tied to context crowding, not to whichever
 // file happened to write it.
-export default function IconButton({ icon: Icon, size = 'md', type = 'button', className = '', ...rest }: IconButtonProps) {
+export default function IconButton({ icon: Icon, size = 'md', type = 'button', className = '', disabled, onMouseEnter, ...rest }: IconButtonProps) {
   const { box, icon } = SIZE_CLASSES[size]
+
+  function handleMouseEnter(e: MouseEvent<HTMLButtonElement>) {
+    if (!disabled) playSound('hover', 0.06)
+    onMouseEnter?.(e)
+  }
+
   return (
     <button
       type={type}
+      disabled={disabled}
+      onMouseEnter={handleMouseEnter}
       className={`flex shrink-0 items-center justify-center rounded-full text-ink-900 transition hover:bg-black/5 active:scale-[0.9] disabled:opacity-30 ${box} ${className}`}
       {...rest}
     >

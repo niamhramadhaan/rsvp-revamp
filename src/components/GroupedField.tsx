@@ -2,6 +2,7 @@ import { forwardRef, useId, useMemo, useRef, useState, type ComponentType, type 
 import { ChevronDownIcon, ImageIcon } from './icons/UiIcons'
 import { useComboboxKeyboard } from '../hooks/useComboboxKeyboard'
 import { compressImage, DEFAULT_MAX_DIMENSION } from '../utils/imageCompression'
+import { playSound } from '../utils/sound'
 
 // Design B from the drawer shell comparison ("Grouped glass sections" — see
 // plan.md round 16's 3-way review) — plain label-above-input fields, with
@@ -348,6 +349,7 @@ export function ImageField({ label, value, onChange, maxDimension = DEFAULT_MAX_
     setError(null)
     if (!file) return
     if (!file.type.startsWith('image/')) {
+      playSound('error')
       setError('Choose an image file.')
       return
     }
@@ -356,6 +358,7 @@ export function ImageField({ label, value, onChange, maxDimension = DEFAULT_MAX_
       const dataUrl = await compressImage(file, maxDimension)
       onChange(dataUrl)
     } catch {
+      playSound('error')
       setError('Could not read that image — try a different file.')
     } finally {
       setProcessing(false)
@@ -454,6 +457,7 @@ export function BannerImageField({ label, value, onChange, focalPoint, onFocalPo
     setError(null)
     if (!file) return
     if (!file.type.startsWith('image/')) {
+      playSound('error')
       setError('Choose an image file.')
       return
     }
@@ -466,6 +470,7 @@ export function BannerImageField({ label, value, onChange, focalPoint, onFocalPo
       // again rather than carrying a stale offset onto unrelated content.
       onFocalPointChange(DEFAULT_FOCAL_POINT)
     } catch {
+      playSound('error')
       setError('Could not read that image — try a different file.')
     } finally {
       setProcessing(false)
@@ -563,6 +568,7 @@ export function LogoImageField({ label, value, onChange }: ImageFieldProps) {
     setError(null)
     if (!file) return
     if (!file.type.startsWith('image/')) {
+      playSound('error')
       setError('Choose an image file.')
       return
     }
@@ -571,6 +577,7 @@ export function LogoImageField({ label, value, onChange }: ImageFieldProps) {
       const dataUrl = await compressImage(file, 512)
       onChange(dataUrl)
     } catch {
+      playSound('error')
       setError('Could not read that image — try a different file.')
     } finally {
       setProcessing(false)

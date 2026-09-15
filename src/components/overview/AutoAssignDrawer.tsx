@@ -4,6 +4,7 @@ import Button from '../Button'
 import { autoAssignSeats, type AutoAssignment } from '../../data/seating'
 import { getGuestStage, isGuestInvited } from '../../data/selectors'
 import { useEnterTransition } from '../../hooks/useEnterTransition'
+import { playSound } from '../../utils/sound'
 import { STAGE_TONE } from './cardChrome'
 import GuestAvatar from './GuestAvatar'
 import { AlertTriangleIcon, AutoAssignIcon, ChairIcon, CheckmarkIcon, FilterIcon, SearchIcon } from '../icons/UiIcons'
@@ -127,6 +128,7 @@ export default function AutoAssignDrawer({ open, onClose, eventId, guests, seats
   useEffect(() => {
     if (phase !== 'revealing') return
     if (revealedCount >= assignments.length) {
+      playSound('complete')
       setPhase('done')
       return
     }

@@ -5,6 +5,7 @@ import { STAGE_TONE } from './cardChrome'
 import GuestAvatar from './GuestAvatar'
 import IconButton from '../IconButton'
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon, SearchIcon } from '../icons/UiIcons'
+import { playSound } from '../../utils/sound'
 import type { ToastTone } from '../Toast'
 
 export interface GuestDockProps {
@@ -177,6 +178,7 @@ export default function GuestDock({
     if (!dragGuestRef.current || !ghostRef.current) return
     if (!dragMoved.current && Math.hypot(e.clientX - dragStart.current.x, e.clientY - dragStart.current.y) > DRAG_THRESHOLD_PX) {
       dragMoved.current = true
+      playSound('drag-start')
     }
     ghostRef.current.style.left = `${e.clientX}px`
     ghostRef.current.style.top = `${e.clientY}px`
@@ -212,8 +214,10 @@ export default function GuestDock({
       if (seatId) {
         const seat = seatById.get(seatId)
         if (seat && seat.status === 'empty') {
+          playSound('drop')
           onAssignGuestToSeat(guest.id, seatId)
         } else {
+          playSound('invalid-drop')
           onToast('That seat is already taken', 'warning')
         }
       }

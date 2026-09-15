@@ -3,6 +3,7 @@ import type { Guest, Seat, SeatGroup } from '../../data/types'
 import { useSwipeToConfirm } from '../../hooks/useSwipeToConfirm'
 import { QrCheckIcon, ChairIcon, ClockIcon, AlertTriangleIcon, ChevronRightIcon, ChevronLeftIcon, ChevronDownIcon, DownloadIcon } from '../icons/UiIcons'
 import GuestAvatar from './GuestAvatar'
+import { playSound } from '../../utils/sound'
 
 // The check-in flow's single result state, produced by CheckInDrawer's
 // resolver — a decoded QR (QrScanner, reading the guest's invitation-email
@@ -86,6 +87,16 @@ export default function CheckInResultCard({
   onUndo,
   onPrintCard,
 }: CheckInResultCardProps) {
+  // These outcomes never touch the shared Toast (the celebration screen
+  // replaces it entirely), so they need their own cue — everything else in
+  // this flow (assign, undo) already gets one from onToast.
+  useEffect(() => {
+    if (resolution.kind === 'checked_in') playSound('achievement')
+    else if (resolution.kind === 'not_found') playSound('error')
+    else if (resolution.kind === 'already_checked_in') playSound('blocked')
+    else if (resolution.kind === 'no_seat') playSound('info')
+  }, [resolution])
+
   if (resolution.kind === 'not_found') {
     return (
       <div

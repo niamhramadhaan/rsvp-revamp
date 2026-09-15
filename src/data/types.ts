@@ -202,8 +202,10 @@ export type GuestStatus = 'active'
  * what they SAID, not what actually happened on the day (a guest can
  * accept and still no-show, or walk in having never responded at all —
  * see selectors.ts's own GuestStage doc for that separate ladder). Not
- * wired to any real external source yet (see Guest.token's own doc on the
- * still-external redemption flow) — settable here as plain data for now. */
+ * wired to any real flow yet — there's no guest-facing RSVP surface at
+ * all (invites are one-way, code + barcode embedded in the message
+ * itself, see Guest.token's own doc) — settable here as plain data for
+ * now. */
 export type RsvpStatus = 'accepted' | 'unsure' | 'declined'
 
 export interface InviteInfo {

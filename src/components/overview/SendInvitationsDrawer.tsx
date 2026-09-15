@@ -6,10 +6,12 @@ import { FieldGroup } from '../GroupedField'
 import { markInvitesSent } from '../../data/guests'
 import { getGuestStage } from '../../data/selectors'
 import { useIntegrationSettings } from '../../data/hooks'
-import { EMAIL_PROVIDER_LABELS, MESSAGE_PROVIDER_LABELS } from '../../data/integrations'
+import { EMAIL_PROVIDER_LABELS, MESSAGE_PROVIDER_LABELS, isEmailConfigured, isMessageConfigured } from '../../data/integrations'
 import { STAGE_TONE } from './cardChrome'
 import GuestAvatar from './GuestAvatar'
-import { SendIcon, ChatBubbleIcon, MailIcon, CheckmarkIcon } from '../icons/UiIcons'
+import InviteBarcode from './InviteBarcode'
+import { playSound } from '../../utils/sound'
+import { SendIcon, ChatBubbleIcon, MailIcon, CheckmarkIcon, AlertTriangleIcon } from '../icons/UiIcons'
 import type { Event, Guest } from '../../data/types'
 import type { ToastTone } from '../Toast'
 
@@ -66,6 +68,28 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
   const [sentCount, setSentCount] = useState(0)
   const [integrations] = useIntegrationSettings()
 
+  // What's actually usable right now — only a channel with a connected
+  // sender (see Settings → Integrations) can be picked here at all. A
+  // channel this app can't really send through has no business being an
+  // option, not just a greyed-out one — see activeChannel's own doc below
+  // for how the rest of this drawer folds back to just this list.
+  const messageConfigured = isMessageConfigured(integrations.message)
+  const emailConfigured = isEmailConfigured(integrations.email)
+  const availableChannels = useMemo(() => {
+    const list: Channel[] = []
+    if (messageConfigured) list.push('wa')
+    if (emailConfigured) list.push('email')
+    return list
+  }, [messageConfigured, emailConfigured])
+
+  // The channel this drawer actually operates on — `channel` state only
+  // matters when there's a real choice between two connected senders; the
+  // moment only one is connected (or the previously-picked one drops off),
+  // this falls back to whichever IS connected instead of quietly operating
+  // on a sender that doesn't exist. Null means neither is connected, which
+  // the render below treats as a hard blocked state, not just an empty list.
+  const activeChannel: Channel | null = availableChannels.includes(channel) ? channel : (availableChannels[0] ?? null)
+
   // Per-channel reach — shown right on the picker cards below, so picking
   // a channel is never a guess about how many guests it can actually reach.
   const waReachable = useMemo(() => guests.filter((g) => Boolean(g.contact.wa?.trim())).length, [guests])
@@ -73,19 +97,24 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
 
   // Only guests who actually have that contact method on file — nowhere for
   // a NetMessage invite to go without a phone number, regardless of filter.
-  const eligible = useMemo(() => guests.filter((g) => Boolean(g.contact[channel]?.trim())), [guests, channel])
+  const eligible = useMemo(
+    () => (activeChannel ? guests.filter((g) => Boolean(g.contact[activeChannel]?.trim())) : []),
+    [guests, activeChannel]
+  )
 
   // Per-status counts for the filter rows below — same "show the number
   // on the control" reasoning as the channel cards above.
   const sentCountFor = useMemo(() => {
-    const sent = eligible.filter((g) => g.invites[channel].status === 'sent').length
+    if (!activeChannel) return { sent: 0, notSent: 0, all: 0 }
+    const sent = eligible.filter((g) => g.invites[activeChannel].status === 'sent').length
     return { sent, notSent: eligible.length - sent, all: eligible.length }
-  }, [eligible, channel])
+  }, [eligible, activeChannel])
 
   const filtered = useMemo(() => {
+    if (!activeChannel) return []
     if (sentFilter === 'all') return eligible
-    return eligible.filter((g) => (g.invites[channel].status === 'sent') === (sentFilter === 'sent'))
-  }, [eligible, sentFilter, channel])
+    return eligible.filter((g) => (g.invites[activeChannel].status === 'sent') === (sentFilter === 'sent'))
+  }, [eligible, sentFilter, activeChannel])
 
   // Fresh setup every time this opens, or the channel switches — defaults to
   // every not-yet-sent, eligible guest checked (the common case: "send to
@@ -96,9 +125,9 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
     setPhase('setup')
     setSentCount(0)
     setSentFilter('not_sent')
-    setChecked(new Set(eligible.filter((g) => g.invites[channel].status !== 'sent').map((g) => g.id)))
+    setChecked(new Set(activeChannel ? eligible.filter((g) => g.invites[activeChannel].status !== 'sent').map((g) => g.id) : []))
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [open, channel])
+  }, [open, activeChannel])
 
   function toggleGuest(id: string) {
     setChecked((prev) => {
@@ -114,10 +143,11 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
   }
 
   async function handleSend() {
-    if (checked.size === 0) return
+    if (checked.size === 0 || !activeChannel) return
+    playSound('send')
     setPhase('sending')
     const ids = [...checked]
-    await markInvitesSent(ids, channel)
+    await markInvitesSent(ids, activeChannel)
     window.setTimeout(() => {
       setSentCount(ids.length)
       setPhase('done')
@@ -131,11 +161,17 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
   }
 
   const allChecked = filtered.length > 0 && checked.size === filtered.length
-  const channelLabel = channel === 'wa' ? 'NetMessage' : 'email'
+  const channelLabel = activeChannel === 'wa' ? 'NetMessage' : 'email'
   // Which third party this channel would actually go out through (see
-  // Settings → Integrations) — honest either way: a named sender still
-  // only marks invites as sent here, and "Not connected" says exactly that.
-  const providerLabel = channel === 'wa' ? MESSAGE_PROVIDER_LABELS[integrations.message.provider] : EMAIL_PROVIDER_LABELS[integrations.email.provider]
+  // Settings → Integrations) — always a real, connected sender now (never
+  // "Not connected"): a channel with nothing behind it never becomes
+  // activeChannel in the first place, see that value's own doc above.
+  const providerLabel =
+    activeChannel === 'wa'
+      ? MESSAGE_PROVIDER_LABELS[integrations.message.provider]
+      : activeChannel === 'email'
+        ? EMAIL_PROVIDER_LABELS[integrations.email.provider]
+        : null
 
   return (
     <DrawerPanelPortal
@@ -149,9 +185,11 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
             <Button variant="ghost" onClick={handleClose}>
               Cancel
             </Button>
-            <Button variant="primary" onClick={handleSend} disabled={checked.size === 0}>
-              Send {checked.size > 0 ? checked.size : ''} invitation{checked.size === 1 ? '' : 's'}
-            </Button>
+            {activeChannel && (
+              <Button variant="primary" onClick={handleSend} disabled={checked.size === 0}>
+                Send {checked.size > 0 ? checked.size : ''} invitation{checked.size === 1 ? '' : 's'}
+              </Button>
+            )}
           </>
         ) : (
           <Button variant="dark" onClick={handleClose} disabled={phase !== 'done'}>
@@ -161,49 +199,67 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
       }
     >
       {phase === 'setup' ? (
+        !activeChannel ? (
+          <NoChannelConnected />
+        ) : (
         <div className="flex flex-col gap-5">
           <FieldGroup
             label="What goes out"
             labelExtra={<InfoTooltip label="What each guest receives — set in the template." />}
           >
-            <TemplatePreview event={event} channel={channel} onEditTemplate={onEditTemplate} />
+            <TemplatePreview event={event} channel={activeChannel} sampleGuest={filtered[0] ?? eligible[0]} onEditTemplate={onEditTemplate} />
           </FieldGroup>
 
           <div>
             <div className="mb-1.5 flex items-center gap-1.5">
               <p className="text-[11px] font-bold uppercase tracking-wide text-muted">Channel</p>
-              <InfoTooltip
-                label={
-                  providerLabel === 'Not connected'
-                    ? `No sender connected (Settings → Integrations) — sending only marks as sent.`
-                    : `Goes out through ${providerLabel}. Sending here only marks as sent.`
-                }
-              />
+              <InfoTooltip label={`Goes out through ${providerLabel}. Sending here only marks as sent.`} />
             </div>
             {/* Provider cards — icon tile + reach count each, the same
                 selectable-card language UserDrawer's own role cards and
                 AutoAssignDrawer's category cards already use, instead of a
-                flat segmented row. */}
-            <div className="grid grid-cols-2 gap-2.5">
-              <ChannelCard
-                active={channel === 'wa'}
-                onClick={() => setChannel('wa')}
-                icon={ChatBubbleIcon}
-                iconTint="bg-accent-cyan/15 text-accent-cyan"
-                label="NetMessage"
-                count={waReachable}
-                countLabel="numbers"
-              />
-              <ChannelCard
-                active={channel === 'email'}
-                onClick={() => setChannel('email')}
-                icon={MailIcon}
-                iconTint="bg-accent-700/10 text-accent-700"
-                label="Email"
-                count={emailReachable}
-                countLabel="addresses"
-              />
-            </div>
+                flat segmented row. Only shown when there's an actual choice
+                to make — one connected sender doesn't need a picker, see
+                the else-branch below. */}
+            {availableChannels.length > 1 ? (
+              <div className="grid grid-cols-2 gap-2.5">
+                <ChannelCard
+                  active={activeChannel === 'wa'}
+                  onClick={() => setChannel('wa')}
+                  icon={ChatBubbleIcon}
+                  iconTint="bg-accent-cyan/15 text-accent-cyan"
+                  label="NetMessage"
+                  count={waReachable}
+                  countLabel="numbers"
+                />
+                <ChannelCard
+                  active={activeChannel === 'email'}
+                  onClick={() => setChannel('email')}
+                  icon={MailIcon}
+                  iconTint="bg-accent-700/10 text-accent-700"
+                  label="Email"
+                  count={emailReachable}
+                  countLabel="addresses"
+                />
+              </div>
+            ) : (
+              // Nothing to pick between — the other channel isn't connected
+              // at all (see availableChannels), so this reads as a fact
+              // ("sending via X"), not a dead selectable card for a sender
+              // that doesn't exist.
+              <div className="flex items-center gap-2.5 rounded-2xl border-2 border-accent-700 bg-accent-700/5 p-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-accent-700 text-white">
+                  {activeChannel === 'wa' ? <ChatBubbleIcon className="h-5 w-5" /> : <MailIcon className="h-5 w-5" />}
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-xs font-semibold text-accent-700">Sending via {channelLabel}</span>
+                  <span className="block text-[11px] text-muted">
+                    {(activeChannel === 'wa' ? waReachable : emailReachable)} {activeChannel === 'wa' ? 'numbers' : 'addresses'} reachable
+                    {' · '}the only channel connected right now
+                  </span>
+                </span>
+              </div>
+            )}
           </div>
 
           <div>
@@ -246,13 +302,13 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
 
             {filtered.length === 0 ? (
               <p className="rounded-xl border border-dashed border-black/10 p-4 text-center text-sm text-muted">
-                No guests with a {channelLabel} {channel === 'wa' ? 'number' : 'address'} on file{sentFilter !== 'all' ? ' match this filter' : ''}.
+                No guests with a {channelLabel} {activeChannel === 'wa' ? 'number' : 'address'} on file{sentFilter !== 'all' ? ' match this filter' : ''}.
               </p>
             ) : (
               <ul className="no-scrollbar flex max-h-[360px] flex-col gap-1 overflow-y-auto rounded-xl border border-black/5 p-1.5">
                 {filtered.map((g) => {
                   const isChecked = checked.has(g.id)
-                  const alreadySent = g.invites[channel].status === 'sent'
+                  const alreadySent = g.invites[activeChannel].status === 'sent'
                   return (
                     <li key={g.id}>
                       <button
@@ -272,7 +328,7 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
                         <GuestAvatar name={g.name} imageUrl={g.imageUrl} avatarConfig={g.avatarConfig} sizeClassName="h-8 w-8" ringClassName={STAGE_TONE[getGuestStage(g)].ring} />
                         <div className="min-w-0 flex-1">
                           <p className="truncate text-sm font-medium text-ink-900">{g.name}</p>
-                          <p className="truncate text-xs text-muted">{g.contact[channel]}</p>
+                          <p className="truncate text-xs text-muted">{g.contact[activeChannel]}</p>
                         </div>
                         {alreadySent && (
                           <span className="shrink-0 rounded-full bg-status-confirmed/10 px-2 py-0.5 text-[10px] font-medium text-status-confirmed">
@@ -287,6 +343,7 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
             )}
           </div>
         </div>
+        )
       ) : (
         <div className="flex flex-col gap-3">
           <p className="text-sm text-muted">
@@ -326,7 +383,13 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
 // states name the gap ("no text yet", "blank invite") instead of showing a
 // hollow card, and every state carries the one action that fixes it in the
 // template drawer. Read-only throughout: nothing here writes the template.
-function TemplatePreview({ event, channel, onEditTemplate }: { event: Event | null; channel: Channel; onEditTemplate: () => void }) {
+//
+// `sampleGuest` renders their actual code + barcode alongside the template
+// — there's no separate redemption step any more (see docs/rsvp-flow.md):
+// the code and barcode ARE the ticket, embedded straight in this message,
+// so what staff sees here is exactly what every guest's own invite carries,
+// not just the shared banner/text they all have in common.
+function TemplatePreview({ event, channel, sampleGuest, onEditTemplate }: { event: Event | null; channel: Channel; sampleGuest?: Guest; onEditTemplate: () => void }) {
   if (!event) {
     return <p className="text-xs text-muted">Select an event first — the template lives on the event.</p>
   }
@@ -357,6 +420,7 @@ function TemplatePreview({ event, channel, onEditTemplate }: { event: Event | nu
         ) : (
           <p className="text-xs text-muted">No readable text in the HTML yet — check what it renders.</p>
         )}
+        <InviteCodeSample guest={sampleGuest} />
         <TemplateEditButton label="Edit template" onAction={onEditTemplate} />
       </div>
     )
@@ -391,7 +455,25 @@ function TemplatePreview({ event, channel, onEditTemplate }: { event: Event | nu
           )}
         </div>
       </div>
+      <InviteCodeSample guest={sampleGuest} />
       <TemplateEditButton label="Edit template" onAction={onEditTemplate} />
+    </div>
+  )
+}
+
+// Every invite carries its own code + barcode automatically — not a
+// template field an operator toggles, so this is never editable here, just
+// shown for the first guest in the current list as a concrete example of
+// what gets appended under the template content above.
+function InviteCodeSample({ guest }: { guest?: Guest }) {
+  if (!guest) return null
+  return (
+    <div className="flex items-center gap-3 rounded-xl bg-black/5 p-2.5">
+      <InviteBarcode value={guest.token} ariaLabel={`Invitation barcode for ${guest.name}`} className="h-9 w-28 shrink-0" />
+      <div className="min-w-0">
+        <p className="text-[10px] font-semibold uppercase tracking-wide text-muted">Their own code, added automatically</p>
+        <p className="truncate font-mono text-xs font-bold text-ink-900">{guest.token}</p>
+      </div>
     </div>
   )
 }
@@ -436,6 +518,26 @@ function ChannelCard({
         </span>
       </span>
     </button>
+  )
+}
+
+// Neither NetMessage nor Email has a connected sender (see Settings →
+// Integrations) — there's nothing to actually pick a channel FOR, so this
+// replaces the whole setup body (template preview, channel picker, guest
+// list) rather than showing an empty picker with two disabled cards nobody
+// can do anything with. Send itself is hidden in the footer for this same
+// state (see the footer's own activeChannel check).
+function NoChannelConnected() {
+  return (
+    <div className="flex flex-col items-center gap-2 rounded-2xl border border-dashed border-black/15 p-6 text-center">
+      <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-status-pending/10 text-status-pending">
+        <AlertTriangleIcon className="h-5 w-5" />
+      </span>
+      <p className="text-sm font-semibold text-ink-900">No sending channel connected</p>
+      <p className="max-w-xs text-xs text-muted">
+        Connect NetMessage or Email in Settings → Integrations before sending invitations from here.
+      </p>
+    </div>
   )
 }
 

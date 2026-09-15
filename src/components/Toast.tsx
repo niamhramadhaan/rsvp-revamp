@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { CheckmarkIcon, InfoIcon, AlertTriangleIcon } from './icons/UiIcons'
+import { playSound } from '../utils/sound'
 
 const DISPLAY_MS = 2200
 
@@ -24,6 +25,12 @@ const TONE_STYLE: Record<ToastTone, { wash: string; icon: typeof CheckmarkIcon }
   warning: { wash: 'bg-status-pending text-white', icon: AlertTriangleIcon },
 }
 
+const TONE_CUE: Record<ToastTone, Parameters<typeof playSound>[0]> = {
+  success: 'success',
+  info: 'info',
+  warning: 'warning',
+}
+
 // Stylized bottom-right toast — fire-and-forget: pass a new `toast` object
 // whenever something should be announced, and this handles its own
 // show/auto-hide timing and smooth enter/exit transition.
@@ -34,6 +41,7 @@ export default function Toast({ toast }: ToastProps) {
   useEffect(() => {
     if (!message) return undefined
 
+    playSound(TONE_CUE[toast?.tone ?? 'success'])
     const showTimer = setTimeout(() => setVisible(true), 10)
     const hideTimer = setTimeout(() => setVisible(false), DISPLAY_MS)
 

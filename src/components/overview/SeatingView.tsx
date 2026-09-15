@@ -17,6 +17,7 @@ import {
 } from '../../data/layoutBlocks'
 import { applyTemplate, type ApplyTemplateResult, type SeatMapTemplateId } from '../../data/seatMapTemplates'
 import { useSeatMapHistory } from '../../hooks/useSeatMapHistory'
+import { playSound } from '../../utils/sound'
 import SeatMapCanvas, { type LibraryItemId } from './SeatMapCanvas'
 import AutoAssignDrawer from './AutoAssignDrawer'
 import type { ToastTone } from '../Toast'
@@ -76,6 +77,7 @@ export default function SeatingView({ eventId, guests, seatMap, seats, groups, l
 
   function handleSelectGuest(id: string) {
     const next = selectedGuestId === id ? null : id
+    playSound(next !== null ? 'select' : 'deselect')
     setSelectedGuestId(next)
     setAssignArmed(next !== null)
   }
@@ -104,6 +106,7 @@ export default function SeatingView({ eventId, guests, seatMap, seats, groups, l
       // it wins over whatever was previously selected. Not armed to assign,
       // though: this is a "look who's here" click, not "move this guest" —
       // see assignArmed's own doc for why that distinction matters.
+      playSound('select')
       setSelectedGuestId(occupant.id)
       setAssignArmed(false)
       return
