@@ -116,6 +116,15 @@
   100% { opacity: 0; }
 }
 
+/* Toast's own auto-dismiss countdown bar — drains left to right over its
+   full visible span (see Toast.tsx's own DISPLAY_MS), `transform: scaleX`
+   (not `width`) for the same compositor-cheap reason checkin-progress-fill
+   already uses `scaleX`, not `width`, below. */
+@keyframes toast-progress-drain {
+  from { transform: scaleX(1); }
+  to { transform: scaleX(0); }
+}
+
 /* Shared list-entrance beat — RecentActivityFeed's rows and GuestsView's
    cards fade+rise in with a per-index delay set inline (capped, so a long
    list doesn't make the last row wait seconds to appear). */
@@ -176,6 +185,19 @@ body {
 @keyframes checkin-ring {
   0% { transform: scale(0.7); opacity: 0.5; }
   100% { transform: scale(1.7); opacity: 0; }
+}
+
+/* RecentCheckinsWidget's own idle liveliness — one avatar at a time, on a
+   random interval (see that component's own doc), gets a small one-shot
+   wiggle so the row doesn't sit dead-still between real check-ins. Kept
+   distinct from checkin-bob (that one means "you just checked in"; this
+   one means nothing at all, it's just motion) and finite like every other
+   one-shot flourish in this file. */
+@keyframes idle-avatar-wiggle {
+  0%, 100% { transform: rotate(0deg) scale(1); }
+  30% { transform: rotate(-6deg) scale(1.05); }
+  60% { transform: rotate(5deg) scale(1.05); }
+  100% { transform: rotate(0deg) scale(1); }
 }
 
 @keyframes checkin-confetti {

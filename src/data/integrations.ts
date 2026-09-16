@@ -94,3 +94,17 @@ export function isMessageConfigured(s: MessageIntegrationSettings): boolean {
   if (s.provider === 'netmessage') return Boolean(s.netmessageApiToken.trim())
   return false
 }
+
+// Whether this channel is switched on at all — the SwitchRow toggle in
+// Settings → Integrations (provider !== 'none'). SendInvitationsDrawer
+// gates channel availability on this alone, not on isXConfigured above
+// (still what the Integrations tab's own status pill reads): an admin who
+// flips a channel on expects it to show up as sendable right away, not
+// only once every credential field is also filled in and valid.
+export function isEmailEnabled(s: EmailIntegrationSettings): boolean {
+  return s.provider !== 'none'
+}
+
+export function isMessageEnabled(s: MessageIntegrationSettings): boolean {
+  return s.provider !== 'none'
+}

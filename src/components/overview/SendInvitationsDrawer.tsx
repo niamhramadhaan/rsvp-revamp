@@ -6,7 +6,7 @@ import { FieldGroup } from '../GroupedField'
 import { markInvitesSent } from '../../data/guests'
 import { getGuestStage } from '../../data/selectors'
 import { useIntegrationSettings } from '../../data/hooks'
-import { EMAIL_PROVIDER_LABELS, MESSAGE_PROVIDER_LABELS, isEmailConfigured, isMessageConfigured } from '../../data/integrations'
+import { EMAIL_PROVIDER_LABELS, MESSAGE_PROVIDER_LABELS, isEmailEnabled, isMessageEnabled } from '../../data/integrations'
 import { STAGE_TONE } from './cardChrome'
 import GuestAvatar from './GuestAvatar'
 import InviteBarcode from './InviteBarcode'
@@ -68,26 +68,28 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
   const [sentCount, setSentCount] = useState(0)
   const [integrations] = useIntegrationSettings()
 
-  // What's actually usable right now — only a channel with a connected
-  // sender (see Settings → Integrations) can be picked here at all. A
-  // channel this app can't really send through has no business being an
-  // option, not just a greyed-out one — see activeChannel's own doc below
-  // for how the rest of this drawer folds back to just this list.
-  const messageConfigured = isMessageConfigured(integrations.message)
-  const emailConfigured = isEmailConfigured(integrations.email)
+  // What's actually usable right now — gated on the on/off toggle in
+  // Settings → Integrations (provider !== 'none'), not on whether every
+  // credential field is also filled in and valid (that's isXConfigured,
+  // still what the Integrations tab's own status pill reads). Flipping a
+  // channel on there is meant to make it sendable immediately — see
+  // activeChannel's own doc below for how the rest of this drawer folds
+  // back to just this list.
+  const messageEnabled = isMessageEnabled(integrations.message)
+  const emailEnabled = isEmailEnabled(integrations.email)
   const availableChannels = useMemo(() => {
     const list: Channel[] = []
-    if (messageConfigured) list.push('wa')
-    if (emailConfigured) list.push('email')
+    if (messageEnabled) list.push('wa')
+    if (emailEnabled) list.push('email')
     return list
-  }, [messageConfigured, emailConfigured])
+  }, [messageEnabled, emailEnabled])
 
   // The channel this drawer actually operates on — `channel` state only
-  // matters when there's a real choice between two connected senders; the
-  // moment only one is connected (or the previously-picked one drops off),
-  // this falls back to whichever IS connected instead of quietly operating
-  // on a sender that doesn't exist. Null means neither is connected, which
-  // the render below treats as a hard blocked state, not just an empty list.
+  // matters when there's a real choice between two enabled senders; the
+  // moment only one is on (or the previously-picked one gets switched
+  // off), this falls back to whichever IS on instead of quietly operating
+  // on a sender that isn't. Null means neither is on, which the render
+  // below treats as a hard blocked state, not just an empty list.
   const activeChannel: Channel | null = availableChannels.includes(channel) ? channel : (availableChannels[0] ?? null)
 
   // Per-channel reach — shown right on the picker cards below, so picking
@@ -163,9 +165,9 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
   const allChecked = filtered.length > 0 && checked.size === filtered.length
   const channelLabel = activeChannel === 'wa' ? 'NetMessage' : 'email'
   // Which third party this channel would actually go out through (see
-  // Settings → Integrations) — always a real, connected sender now (never
-  // "Not connected"): a channel with nothing behind it never becomes
-  // activeChannel in the first place, see that value's own doc above.
+  // Settings → Integrations) — always a real provider name now (never
+  // "Not connected"): a channel that's off never becomes activeChannel in
+  // the first place, see that value's own doc above.
   const providerLabel =
     activeChannel === 'wa'
       ? MESSAGE_PROVIDER_LABELS[integrations.message.provider]
@@ -255,7 +257,7 @@ export default function SendInvitationsDrawer({ open, onClose, guests, event, on
                   <span className="block text-xs font-semibold text-accent-700">Sending via {channelLabel}</span>
                   <span className="block text-[11px] text-muted">
                     {(activeChannel === 'wa' ? waReachable : emailReachable)} {activeChannel === 'wa' ? 'numbers' : 'addresses'} reachable
-                    {' · '}the only channel connected right now
+                    {' · '}the only channel switched on right now
                   </span>
                 </span>
               </div>
@@ -521,7 +523,7 @@ function ChannelCard({
   )
 }
 
-// Neither NetMessage nor Email has a connected sender (see Settings →
+// Neither NetMessage nor Email is switched on (see Settings →
 // Integrations) — there's nothing to actually pick a channel FOR, so this
 // replaces the whole setup body (template preview, channel picker, guest
 // list) rather than showing an empty picker with two disabled cards nobody
@@ -533,9 +535,9 @@ function NoChannelConnected() {
       <span className="flex h-11 w-11 items-center justify-center rounded-2xl bg-status-pending/10 text-status-pending">
         <AlertTriangleIcon className="h-5 w-5" />
       </span>
-      <p className="text-sm font-semibold text-ink-900">No sending channel connected</p>
+      <p className="text-sm font-semibold text-ink-900">No sending channel switched on</p>
       <p className="max-w-xs text-xs text-muted">
-        Connect NetMessage or Email in Settings → Integrations before sending invitations from here.
+        Turn on NetMessage or Email in Settings → Integrations before sending invitations from here.
       </p>
     </div>
   )

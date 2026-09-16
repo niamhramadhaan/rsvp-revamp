@@ -3,11 +3,13 @@ import PageStage from './PageStage'
 import EventBanner from './overview/EventBanner'
 import QuickActionsPanel from './overview/QuickActionsPanel'
 import EventCountdownWidget from './overview/EventCountdownWidget'
+import GlassWeatherWidget from './overview/GlassWeatherWidget'
 import StatTiles from './overview/StatTiles'
 import CheckInProgressRing from './overview/CheckInProgressRing'
 import GuestListMiniWidget from './overview/GuestListMiniWidget'
 import RecentActivityFeed, { RecentActivityTable } from './overview/RecentActivityFeed'
 import RecentCheckinsWidget from './overview/RecentCheckinsWidget'
+import TopGroupsWidget from './overview/TopGroupsWidget'
 import EventTabs from './overview/EventTabs'
 import GuestsView from './overview/GuestsView'
 import SeatingView from './overview/SeatingView'
@@ -22,7 +24,7 @@ import Toast, { type ToastState, type ToastTone } from './Toast'
 import { useSeatEditorGuard } from './SeatEditorGuardContext'
 import { ClockIcon } from './icons/UiIcons'
 import { useCanAccess, useCurrentEvent, useGuests, useSeatMap } from '../data/hooks'
-import { getGuestCounts, getGuestGroupLabel, getRecentActivity } from '../data/selectors'
+import { getGroupBreakdown, getGuestCounts, getGuestGroupLabel, getRecentActivity } from '../data/selectors'
 import { unassignSeat } from '../data/seating'
 import type { Event } from '../data/types'
 
@@ -122,6 +124,7 @@ function OverviewContent() {
   // room to actually show more than a handful before an admin has to leave
   // Overview to see older activity.
   const activity = getRecentActivity(guests, 20)
+  const groupBreakdown = useMemo(() => getGroupBreakdown(guests, seats, groups), [guests, seats, groups])
   const seatById = useMemo(() => new Map(seats.map((s) => [s.id, s])), [seats])
   // Guest.groupLabel is gone — a guest's "group" is derived from whichever
   // seat they're assigned to (see selectors.ts's getGuestGroupLabel and
@@ -288,7 +291,27 @@ function OverviewContent() {
                 <RecentActivityFeed activity={activity} onViewAll={openActivityDrawer} />
               </div>
 
-              <RecentCheckinsWidget guests={guests} onViewProfile={handleViewProfile} />
+              {/* Recent check-ins pairs with the live weather card — avatar
+                  queue (fluid) beside a fixed ~340px weather column,
+                  stacking on narrow widths. Weather follows the current
+                  event's own pin coordinates when set, otherwise its venue
+                  string is geocoded (Open-Meteo, no key). items-start (each
+                  column sizes to its own content) rather than a forced
+                  stretch — Top groups now sits under Recent check-ins so
+                  the left column's own height naturally fills the space
+                  next to the weather card instead of that card being
+                  stretched tall to cover a gap. */}
+              <div className="grid grid-cols-1 gap-6 @5xl:grid-cols-[1fr_340px] @5xl:items-start">
+                <div className="flex flex-col gap-6">
+                  <RecentCheckinsWidget guests={guests} onViewProfile={handleViewProfile} />
+                  <TopGroupsWidget groups={groupBreakdown} onViewAll={() => handleTabChange('reports')} />
+                </div>
+                <GlassWeatherWidget
+                  location={currentEvent?.venue || undefined}
+                  latitude={currentEvent?.lat}
+                  longitude={currentEvent?.lng}
+                />
+              </div>
             </>
           )}
 

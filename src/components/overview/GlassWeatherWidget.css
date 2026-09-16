@@ -1,0 +1,581 @@
+/*
+  Glass Weather widget styles — scoped port of
+  projects/_template/snippets/glass-weather/glass-weather.css.
+  See GlassWeatherWidget.tsx for what was intentionally left behind
+  (global reset, body page wash, fixed width, static demo toggle).
+
+  Palette pass: the original (and this file's first cut) was a dark glass
+  surface with white text — moved to a light pastel glass instead (ink text
+  on soft sky/peach washes) so it reads as "glass" without needing near-
+  white text to carry all the contrast. Every color below is ink-900-based
+  (see src/index.css's --color-ink-900) rather than white-based.
+*/
+
+.gw-card {
+  --gw-text: #101e33;
+  --gw-text-dim: rgba(16, 30, 51, 0.68);
+  --gw-glass-border: rgba(248, 241, 228, 0.7);
+  --gw-accent: #0060a8;
+  --gw-sun: #f5a623;
+  --gw-moon: #8b93c9;
+  --gw-cloud: #93a8c4;
+  --gw-overcast: #64758c;
+  --gw-rain: #4fa7dd;
+  --gw-snow: #a9c6de;
+  --gw-radius: 28px;
+  --gw-tilt-x: 0deg;
+  --gw-tilt-y: 0deg;
+
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100%;
+  padding: 24px 26px 22px;
+  border-radius: var(--gw-radius);
+  /* Base is cream, not plain white — the same --color-cream every other
+     Overview widget's own GLASS_CARD sits on (see cardChrome.ts), so this
+     card reads as one of the family instead of a colder, whiter card
+     dropped in next to it. The sky/peach washes on top are what still
+     make it its own "glass" surface.
+     Note: only the LAST comma-separated background layer may be a plain
+     color — a bare rgba() in an earlier layer makes the whole shorthand
+     invalid and the browser drops it entirely (a real bug this card hit
+     once already). Every layer here is a gradient, last one included, so
+     that trap can't recur. */
+  background:
+    radial-gradient(60% 60% at 20% 12%, rgba(140, 205, 255, 0.5), transparent 60%),
+    radial-gradient(55% 55% at 85% 85%, rgba(255, 199, 140, 0.45), transparent 62%),
+    linear-gradient(160deg, #fbf5e9 0%, #f2ead9 100%);
+  border: 1px solid var(--gw-glass-border);
+  backdrop-filter: blur(22px) saturate(140%);
+  -webkit-backdrop-filter: blur(22px) saturate(140%);
+  box-shadow:
+    0 1px 0 rgba(255, 255, 255, 0.8) inset,
+    0 20px 45px -12px rgba(16, 30, 51, 0.22);
+  overflow: hidden;
+  isolation: isolate;
+  color: var(--gw-text);
+  font-family: "Plus Jakarta Sans", "Poppins", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  box-sizing: border-box;
+  /* Tilt — a subtle pointer-tracked 3D rotation (see the .tsx's own
+     mousemove handler, which writes --gw-tilt-x/-y directly to this
+     element's style, no re-render per frame). Transition is toggled to
+     "none" during active movement (snappy) and back on for the
+     mouseleave reset (eases back to flat instead of snapping). */
+  transform: perspective(900px) rotateX(var(--gw-tilt-x)) rotateY(var(--gw-tilt-y));
+  transform-style: preserve-3d;
+  will-change: transform;
+  /* Entrance — opacity only, never `transform`: this card's `transform`
+     is permanently owned by the tilt above, and a fill-forwards keyframe
+     touching it here would freeze tilt at whatever this animation's last
+     frame was the instant it finished. */
+  animation: gw-card-in 550ms ease-out both;
+}
+
+@keyframes gw-card-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.gw-card *,
+.gw-card *::before,
+.gw-card *::after {
+  box-sizing: border-box;
+}
+
+.gw-card__glow {
+  position: absolute;
+  inset: -40% -40% auto auto;
+  width: 70%;
+  height: 70%;
+  background: radial-gradient(circle, rgba(255, 255, 255, 0.7), transparent 65%);
+  opacity: 0.7;
+  pointer-events: none;
+  z-index: -1;
+}
+
+/* Title row — same headline/border-b divider treatment WidgetCard gives
+   every other Overview card (see GlassWeatherWidget.tsx's own comment). */
+.gw-card__title-row {
+  padding-bottom: 12px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid rgba(16, 30, 51, 0.12);
+}
+
+.gw-card__title {
+  font-family: "Plus Jakarta Sans", "Poppins", system-ui, sans-serif;
+  font-size: 1.125rem;
+  font-weight: 600;
+  color: var(--gw-text);
+}
+
+/* Everything below the title grows to fill whatever height the grid row
+   gives this card, so a short weather payload doesn't leave a dead gap
+   at the bottom. */
+.gw-card__body {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+  flex-direction: column;
+}
+
+.gw-card__top {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  font-size: 0.85rem;
+}
+
+/* Icon/temp/condition group — the part of the card with genuinely
+   variable content height, so it's the one that absorbs any extra space
+   from the stretch above (centered), rather than the fixed-content stats
+   row or footer drifting apart from their own borders. */
+.gw-card__middle {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.gw-card__location {
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.gw-card__updated {
+  color: var(--gw-text-dim);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.gw-card__main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin: 0 0 4px;
+}
+
+.gw-card__icon {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  filter: drop-shadow(0 4px 12px rgba(16, 30, 51, 0.18));
+}
+
+.gw-icon {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  fill: none;
+  stroke-width: 3.5;
+  stroke-linecap: round;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.5s ease, transform 0.5s ease;
+}
+
+/* Condition-driven icon visibility — set via [data-condition] on the card,
+   one of six now (see the .tsx's own Condition doc) instead of three. */
+.gw-card[data-condition="clear-day"] .gw-icon--sun,
+.gw-card[data-condition="clear-night"] .gw-icon--moon,
+.gw-card[data-condition="partly-cloudy"] .gw-icon--partly-cloudy,
+.gw-card[data-condition="overcast"] .gw-icon--cloud,
+.gw-card[data-condition="rain"] .gw-icon--rain,
+.gw-card[data-condition="snow"] .gw-icon--snow {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.gw-icon--sun {
+  stroke: var(--gw-sun);
+}
+
+.gw-icon--sun circle {
+  fill: var(--gw-sun);
+  stroke: none;
+}
+
+/* Loop animations — each condition's own idle motion, running only while
+   its icon is the visible one ([data-condition] already gates opacity,
+   so a hidden icon's loop just costs nothing visible). Paused entirely
+   under prefers-reduced-motion below. */
+.gw-icon--sun .gw-icon__rays {
+  transform-origin: 32px 32px;
+  animation: gw-sun-spin 14s linear infinite;
+}
+
+/* Moon — clear-night's own icon, not a recolored sun: night shouldn't
+   read as "the same sun, just dimmer," it's a genuinely different shape. */
+.gw-icon--moon {
+  stroke: none;
+}
+
+.gw-icon--moon path {
+  fill: var(--gw-moon);
+}
+
+.gw-icon--moon .gw-icon__star {
+  fill: var(--gw-moon);
+  animation: gw-star-twinkle 2.4s ease-in-out infinite;
+}
+
+.gw-icon--moon .gw-icon__star:nth-child(3) {
+  animation-delay: 0.6s;
+}
+
+@keyframes gw-star-twinkle {
+  0%,
+  100% {
+    opacity: 0.35;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+/* Partly-cloudy — a small sun peeking from behind a lighter cloud, kept
+   visually distinct from both plain sun (no cloud at all) and overcast
+   (a single full, darker cloud with no sun in sight). */
+.gw-icon--partly-cloudy {
+  stroke: var(--gw-sun);
+}
+
+.gw-icon--partly-cloudy .gw-icon__peek circle {
+  fill: var(--gw-sun);
+  stroke: none;
+}
+
+.gw-icon--partly-cloudy .gw-icon__cloud-body {
+  fill: var(--gw-cloud);
+  stroke: none;
+}
+
+.gw-icon--partly-cloudy .gw-icon__peek {
+  animation: gw-sun-spin 14s linear infinite;
+  transform-origin: 38px 22px;
+}
+
+/* Overcast — the same cloud silhouette as rain/snow's own cloud body, but
+   its own deliberately darker, flatter gray: a full sky of cloud with
+   nothing coming down, not the same lighter cloud rain/snow sit under. */
+.gw-icon--cloud {
+  stroke: var(--gw-overcast);
+  animation: gw-cloud-drift 4.5s ease-in-out infinite;
+}
+
+.gw-icon--cloud path {
+  fill: var(--gw-overcast);
+  stroke: none;
+}
+
+.gw-icon--rain {
+  stroke: var(--gw-rain);
+}
+
+.gw-icon--rain path {
+  fill: var(--gw-cloud);
+  stroke: none;
+}
+
+.gw-icon--rain .gw-icon__drops line {
+  stroke: var(--gw-rain);
+  animation: gw-rain-fall 1.1s linear infinite;
+}
+
+.gw-icon--rain .gw-icon__drops line:nth-child(2) {
+  animation-delay: 0.25s;
+}
+
+.gw-icon--rain .gw-icon__drops line:nth-child(3) {
+  animation-delay: 0.5s;
+}
+
+.gw-icon--snow {
+  stroke: none;
+}
+
+.gw-icon--snow path {
+  fill: var(--gw-cloud);
+}
+
+.gw-icon--snow .gw-icon__flakes circle {
+  fill: var(--gw-snow);
+  animation: gw-snow-fall 2.4s ease-in-out infinite;
+}
+
+.gw-icon--snow .gw-icon__flakes circle:nth-child(2) {
+  animation-delay: 0.5s;
+}
+
+.gw-icon--snow .gw-icon__flakes circle:nth-child(3) {
+  animation-delay: 1s;
+}
+
+@keyframes gw-sun-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes gw-cloud-drift {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-3px);
+  }
+}
+
+@keyframes gw-rain-fall {
+  0% {
+    transform: translateY(-3px);
+    opacity: 0;
+  }
+  25% {
+    opacity: 1;
+  }
+  80% {
+    opacity: 0.4;
+  }
+  100% {
+    transform: translateY(6px);
+    opacity: 0;
+  }
+}
+
+/* Snow drifts side to side as it falls, slower than rain's straight-down
+   streak — the one shape difference (besides color) that keeps the two
+   from reading as the same animation with a different tint. */
+@keyframes gw-snow-fall {
+  0% {
+    transform: translate(0, -2px);
+    opacity: 0;
+  }
+  20% {
+    opacity: 1;
+  }
+  50% {
+    transform: translate(2px, 4px);
+  }
+  80% {
+    opacity: 0.5;
+  }
+  100% {
+    transform: translate(-2px, 9px);
+    opacity: 0;
+  }
+}
+
+.gw-card__temp {
+  display: flex;
+  align-items: flex-start;
+}
+
+.gw-card__temp-value {
+  font-size: 3.4rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  transition: opacity 0.25s ease;
+}
+
+/* Refresh feedback — a brief flash on the value itself when a refresh
+   actually lands new data, so pressing ↻ reads as "it worked" rather
+   than the number silently changing (or not) with no acknowledgement. */
+.gw-card__temp-value.gw-flash {
+  animation: gw-value-flash 700ms ease-out;
+}
+
+@keyframes gw-value-flash {
+  0% {
+    color: var(--gw-accent);
+    opacity: 0.4;
+  }
+  100% {
+    color: var(--gw-text);
+    opacity: 1;
+  }
+}
+
+.gw-card__temp-unit {
+  font-size: 1.4rem;
+  font-weight: 700;
+  opacity: 0.75;
+  margin-top: 4px;
+}
+
+.gw-card__condition {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--gw-text-dim);
+}
+
+.gw-card__stats {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 16px;
+  margin-top: 18px;
+  border-top: 1px solid rgba(16, 30, 51, 0.12);
+}
+
+.gw-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.gw-stat__label {
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--gw-text-dim);
+}
+
+.gw-stat__value {
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+/* Loading / error states (replacing the snippet's static demo toggle). */
+.gw-card__loading {
+  margin: 28px 0;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gw-text-dim);
+}
+
+.gw-card__error {
+  margin: 24px 0;
+}
+
+.gw-card__error p {
+  margin: 0 0 12px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--gw-text);
+}
+
+.gw-card__error button {
+  padding: 8px 20px;
+  border-radius: 999px;
+  border: none;
+  background: var(--gw-accent);
+  color: #fff;
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 0.15s ease;
+}
+
+.gw-card__error button:active {
+  transform: scale(0.95);
+}
+
+/* Live-source footer + refresh — replaces the snippet's demo toggle nav. */
+.gw-card__foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding-top: 14px;
+  border-top: 1px solid rgba(16, 30, 51, 0.12);
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: var(--gw-text-dim);
+}
+
+.gw-card__foot button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  border: 1px solid rgba(16, 30, 51, 0.15);
+  background: rgba(16, 30, 51, 0.05);
+  color: var(--gw-text);
+  cursor: pointer;
+  transition: background 0.25s ease, transform 0.15s ease;
+}
+
+.gw-card__foot button:hover:not(:disabled) {
+  background: rgba(16, 30, 51, 0.1);
+}
+
+/* Press feedback — every other icon-button in this app gets an
+   active:scale press (Button.tsx, RecentCheckinsWidget's avatars). */
+.gw-card__foot button:active:not(:disabled) {
+  transform: scale(0.9);
+}
+
+.gw-card__foot button:disabled {
+  opacity: 0.7;
+  cursor: default;
+}
+
+.gw-refresh-icon {
+  width: 15px;
+  height: 15px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+/* Spins while a refresh is in flight (data-refreshing, set for every
+   load — first mount included, not just the initial skeleton) — the one
+   moment this app's own "no perpetual loops" rule (see
+   RecentCheckinsWidget's own doc) doesn't apply, since this loop has a
+   real end: it stops the instant the fetch resolves. Animating the icon,
+   not the button, keeps the press-feedback scale above free to run at
+   the same time without the two transforms fighting. */
+.gw-card__foot button[data-refreshing="true"] .gw-refresh-icon {
+  animation: gw-spin 800ms linear infinite;
+}
+
+@keyframes gw-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gw-card {
+    transition: none;
+    transform: none;
+    animation: none;
+    opacity: 1;
+  }
+
+  .gw-icon,
+  .gw-icon--sun .gw-icon__rays,
+  .gw-icon--moon .gw-icon__star,
+  .gw-icon--partly-cloudy .gw-icon__peek,
+  .gw-icon--cloud,
+  .gw-icon--rain .gw-icon__drops line,
+  .gw-icon--snow .gw-icon__flakes circle,
+  .gw-card__foot button[data-refreshing="true"] .gw-refresh-icon,
+  .gw-card__temp-value.gw-flash {
+    animation: none;
+  }
+}

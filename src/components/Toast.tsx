@@ -66,9 +66,22 @@ export default function Toast({ toast }: ToastProps) {
         visible ? 'translate-y-0 opacity-100' : 'translate-y-3 opacity-0'
       }`}
     >
-      <div className={`flex items-center gap-2.5 rounded-xl px-4 py-3 text-sm font-medium shadow-xl ${wash}`}>
+      <div className={`relative flex items-center gap-2.5 overflow-hidden rounded-xl px-4 py-3 text-sm font-medium shadow-xl ${wash}`}>
         <Icon className="h-4 w-4 shrink-0" />
         {message}
+        {/* Auto-dismiss countdown — every toast stays up for DISPLAY_MS
+            (2.2s, always at least the 2s a real wait is worth showing
+            progress for), so this drains left-to-right over that same
+            span instead of the toast just vanishing with no warning.
+            Keyed by message so a genuinely new toast always restarts the
+            drain from full, rather than continuing whatever span the
+            previous one was partway through. */}
+        <div
+          key={message}
+          aria-hidden="true"
+          className="absolute inset-x-0 bottom-0 h-0.5 origin-left bg-white/40"
+          style={{ animation: `toast-progress-drain ${DISPLAY_MS}ms linear forwards` }}
+        />
       </div>
     </div>
   )

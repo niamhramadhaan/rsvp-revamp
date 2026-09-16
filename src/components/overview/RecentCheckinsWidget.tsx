@@ -68,6 +68,46 @@ export default function RecentCheckinsWidget({ guests, onViewProfile }: RecentCh
     return undefined
   }, [recentCheckins])
 
+  // Idle liveliness — one random avatar wiggles at a time, on a random
+  // interval, so the row isn't perfectly still between real check-ins.
+  // Deliberately not "all of them" and not on a fixed beat: a synchronized
+  // or metronomic loop reads as a UI glitch, one avatar taking its turn at
+  // an irregular pace reads as alive. Off entirely under
+  // prefers-reduced-motion, and paused whenever the tab isn't visible so
+  // it isn't burning cycles in a background tab.
+  const [wigglingId, setWigglingId] = useState<string | null>(null)
+  useEffect(() => {
+    if (recentCheckins.length === 0) return undefined
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return undefined
+
+    let cancelled = false
+    let clearTimer: ReturnType<typeof window.setTimeout> | undefined
+    let nextTimer: ReturnType<typeof window.setTimeout> | undefined
+
+    function scheduleNext() {
+      const delay = 2200 + Math.random() * 3600
+      nextTimer = window.setTimeout(() => {
+        if (cancelled || document.hidden) {
+          scheduleNext()
+          return
+        }
+        const guest = recentCheckins[Math.floor(Math.random() * recentCheckins.length)]
+        setWigglingId(guest.id)
+        clearTimer = window.setTimeout(() => {
+          if (!cancelled) setWigglingId(null)
+        }, 600)
+        scheduleNext()
+      }, delay)
+    }
+
+    scheduleNext()
+    return () => {
+      cancelled = true
+      window.clearTimeout(nextTimer)
+      window.clearTimeout(clearTimer)
+    }
+  }, [recentCheckins])
+
   return (
     <WidgetCard title="Recent check-ins">
       {recentCheckins.length === 0 ? (
@@ -76,16 +116,27 @@ export default function RecentCheckinsWidget({ guests, onViewProfile }: RecentCh
         <div className="flex flex-wrap gap-3">
           {recentCheckins.map((g, i) => {
             const isLive = liveIds.has(g.id)
+            const isWiggling = !isLive && wigglingId === g.id
             return (
               <Tooltip key={g.id} label={`${g.name} · ${timeAgo(g.checkedInAt)}`} hoverOnly>
                 <button
                   type="button"
                   onClick={() => onViewProfile(g.id)}
                   aria-label={`View ${g.name}'s profile`}
-                  className="relative shrink-0 rounded-full transition active:scale-[0.93]"
+                  className="relative block h-14 w-14 shrink-0 rounded-full transition active:scale-[0.93]"
                   style={{ animation: `stagger-in 380ms ease-out ${Math.min(i, 8) * 40}ms both` }}
                 >
-                  {/* checkin-bob — the same finite (not looping) "just
+                  {/* The photo/illustration is the only layer that ever
+                      moves — clipped to the circle (overflow-hidden) so a
+                      bounce or wiggle never visually pokes past its own
+                      frame — while the status ring below lives on its own
+                      static layer, outside this clip, that never carries an
+                      animation itself. Two separate elements instead of one
+                      (GuestAvatar's own ringClassName, which paints the ring
+                      on the same element that moves) is what keeps the ring
+                      reading as a fixed frame while the photo inside it
+                      does something.
+                      checkin-bob — the same finite (not looping) "just
                       happened" flourish CheckInResultCard already plays on
                       a successful scan, reused here instead of a
                       continuously-running float: this app's own stated
@@ -95,18 +146,24 @@ export default function RecentCheckinsWidget({ guests, onViewProfile }: RecentCh
                       communicate a genuinely ongoing state — a fresh
                       check-in isn't one, it's a moment, so it gets a
                       moment's worth of motion and then rests. */}
-                  <span
-                    className="block"
-                    style={isLive ? { animation: 'checkin-bob 700ms ease-in-out 2' } : undefined}
-                  >
-                    <GuestAvatar
-                      name={g.name}
-                      imageUrl={g.imageUrl}
-                      avatarConfig={g.avatarConfig}
-                      sizeClassName="h-14 w-14"
-                      ringClassName={STAGE_TONE.checked_in.ring}
-                    />
+                  <span className="absolute inset-0 block overflow-hidden rounded-full">
+                    <span
+                      className="block h-full w-full"
+                      style={
+                        isLive
+                          ? { animation: 'checkin-bob 700ms ease-in-out 2' }
+                          : isWiggling
+                            ? { animation: 'idle-avatar-wiggle 600ms ease-in-out' }
+                            : undefined
+                      }
+                    >
+                      <GuestAvatar name={g.name} imageUrl={g.imageUrl} avatarConfig={g.avatarConfig} sizeClassName="h-14 w-14" />
+                    </span>
                   </span>
+                  <span
+                    aria-hidden="true"
+                    className={`pointer-events-none absolute inset-0 rounded-full ring-2 ring-inset ${STAGE_TONE.checked_in.ring}`}
+                  />
                   {isLive && (
                     <span
                       aria-hidden="true"
