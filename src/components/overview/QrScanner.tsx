@@ -90,7 +90,7 @@ export default function QrScanner({ active, onDecode }: QrScannerProps) {
   }, [active, status])
 
   return (
-    <div className="relative aspect-square w-full overflow-hidden rounded-2xl bg-ink-900 [&_video]:h-full [&_video]:w-full [&_video]:object-cover">
+    <div className="relative h-full w-full overflow-hidden bg-ink-900 [&_video]:h-full [&_video]:w-full [&_video]:object-cover">
       <div id={containerId} className="h-full w-full" />
 
       {status === 'starting' && (
@@ -107,18 +107,23 @@ export default function QrScanner({ active, onDecode }: QrScannerProps) {
 
       {status === 'running' && (
         <>
-          {/* Our own scan-frame chrome over the library's bare video feed —
-              corner brackets + a traveling scan-line, so the camera reads as
-              part of this app rather than a bare third-party widget. */}
-          <div className="pointer-events-none absolute inset-8 overflow-hidden rounded-2xl border-2 border-white/60">
-            <span className="absolute -left-0.5 -top-0.5 h-6 w-6 rounded-tl-2xl border-l-4 border-t-4 border-accent-cyan-light" />
-            <span className="absolute -right-0.5 -top-0.5 h-6 w-6 rounded-tr-2xl border-r-4 border-t-4 border-accent-cyan-light" />
+          {/* Gate-arch scan frame — now a fixed-size arch centered inside
+              the full-bleed camera stage (rather than stretching to fill
+              it), so a tall viewfinder still reads as "a gate to walk
+              through," not a stretched oval. Same corner-bracket-plus-
+              scanline chrome as before, just recentered; only
+              accent-cyan-light/ink-900 (already this frame's own colors) —
+              no new palette. */}
+          <div className="pointer-events-none absolute left-1/2 top-1/2 h-72 w-64 -translate-x-1/2 -translate-y-1/2 overflow-hidden rounded-t-[50%] rounded-b-2xl border-2 border-white/60">
             <span className="absolute -bottom-0.5 -left-0.5 h-6 w-6 rounded-bl-2xl border-b-4 border-l-4 border-accent-cyan-light" />
             <span className="absolute -bottom-0.5 -right-0.5 h-6 w-6 rounded-br-2xl border-b-4 border-r-4 border-accent-cyan-light" />
             <div className="absolute inset-0" style={{ animation: 'qr-scanline 2200ms ease-in-out infinite' }}>
               <span className="absolute inset-x-0 top-0 h-0.5 bg-accent-cyan-light/90 shadow-[0_0_8px_2px_rgba(84,180,240,0.7)]" />
             </div>
           </div>
+          <span className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[168px] rounded-full border border-accent-cyan-light/50 bg-ink-900/90 px-3 py-1 font-display text-[10px] font-bold uppercase tracking-[0.18em] text-accent-cyan-light">
+            Gate · Scanning
+          </span>
 
           {!active && (
             <div className="absolute inset-0 flex items-center justify-center bg-ink-900/70 text-sm font-medium text-white">
@@ -126,7 +131,7 @@ export default function QrScanner({ active, onDecode }: QrScannerProps) {
             </div>
           )}
 
-          <p className="pointer-events-none absolute inset-x-0 bottom-3 text-center text-xs font-medium text-white/80">
+          <p className="pointer-events-none absolute inset-x-0 bottom-6 text-center text-xs font-medium text-white/80">
             Point the camera at the guest's ticket — QR or barcode
           </p>
         </>

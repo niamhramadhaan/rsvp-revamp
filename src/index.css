@@ -205,6 +205,14 @@ body {
   100% { transform: translate(var(--tx), var(--ty)) rotate(var(--rot)); opacity: 0; }
 }
 
+/* ReadyCard/CheckedInCelebration's own entrance — the boarding-pass card
+   rising into place, echoing a real gate reader accepting a ticket, rather
+   than just appearing. Transform/opacity only, one-shot. */
+@keyframes checkin-stub-in {
+  0% { transform: translateY(28px) scale(0.98); opacity: 0; }
+  100% { transform: translateY(0) scale(1); opacity: 1; }
+}
+
 /* CheckInResultCard's own post-swipe "confirming" bar (ReadyCard) — a
    determinate 3s fill, `transform: scaleX` (not `width`) so it stays
    compositor-cheap, same "transform/opacity, not layout properties" bias

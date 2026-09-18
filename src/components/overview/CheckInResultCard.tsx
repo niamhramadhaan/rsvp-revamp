@@ -101,15 +101,16 @@ export default function CheckInResultCard({
     return (
       <div
         key={`not-found-${resolution.query}`}
-        className="rounded-2xl border border-status-declined/20 bg-status-declined/10 p-6 text-status-declined"
+        className="rounded-2xl bg-status-declined p-6 text-white"
+        style={{ animation: 'checkin-stub-in 380ms cubic-bezier(0.22,1,0.36,1) both' }}
       >
         <div className="flex items-center gap-4">
-          <IconBadge className="bg-status-declined/10">
+          <IconBadge className="bg-white/15">
             <AlertTriangleIcon className="h-7 w-7" style={{ animation: 'checkin-shake 500ms ease-out 420ms both' }} />
           </IconBadge>
           <div className="min-w-0">
             <p className="font-display text-lg font-bold">No match for &ldquo;{resolution.query}&rdquo;</p>
-            <p className="mt-0.5 text-sm text-status-declined/80">
+            <p className="mt-0.5 text-sm text-white/80">
               No guest or code matches that — check the spelling, or enter their exact invitation code.
             </p>
           </div>
@@ -145,7 +146,8 @@ export default function CheckInResultCard({
     return (
       <div
         key={`dup-${guest.id}`}
-        className="rounded-2xl border border-ink-900/10 bg-ink-900/5 p-4 text-ink-900"
+        className="rounded-2xl bg-ink-900 p-4 text-white"
+        style={{ animation: 'checkin-stub-in 380ms cubic-bezier(0.22,1,0.36,1) both' }}
       >
         <div className="flex items-center gap-3">
           {/* Identity first (same PersonBadge corner-badge language the
@@ -153,13 +155,13 @@ export default function CheckInResultCard({
               what a staffer matches, the clock just says "again". */}
           <span className="relative shrink-0">
             <GuestAvatar name={guest.name} imageUrl={guest.imageUrl} avatarConfig={guest.avatarConfig} sizeClassName="h-11 w-11" />
-            <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-white bg-ink-900 text-white">
+            <span className="absolute -bottom-0.5 -right-0.5 flex h-5 w-5 items-center justify-center rounded-full border-2 border-ink-900 bg-white text-ink-900">
               <ClockIcon className="h-2.5 w-2.5" />
             </span>
           </span>
           <div className="min-w-0 flex-1">
-            <p className="truncate text-sm font-semibold text-ink-900">{guest.name} is already checked in</p>
-            <p className="mt-0.5 flex items-center gap-1 text-xs text-muted">
+            <p className="truncate text-sm font-semibold text-white">{guest.name} is already checked in</p>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-white/70">
               <ClockIcon className="h-3.5 w-3.5 shrink-0" />
               <span className="truncate">
                 {guest.checkedInAt ? formatTime(guest.checkedInAt) : '—'}
@@ -174,7 +176,7 @@ export default function CheckInResultCard({
         <button
           type="button"
           onClick={() => onUndo(guest)}
-          className="-mx-2 -my-1 mt-1 inline-block px-2 py-2 text-xs font-semibold text-ink-900 underline decoration-ink-900/25 underline-offset-2 transition hover:decoration-ink-900/60 active:scale-[0.97]"
+          className="-mx-2 -my-1 mt-1 inline-block px-2 py-2 text-xs font-semibold text-white/80 underline decoration-white/30 underline-offset-2 transition hover:text-white hover:decoration-white/60 active:scale-[0.97]"
         >
           Not them? Undo this check-in
         </button>
@@ -187,15 +189,16 @@ export default function CheckInResultCard({
     return (
       <div
         key={`no-seat-${guest.id}`}
-        className="rounded-2xl border border-accent-cyan/25 bg-accent-cyan/10 p-6 text-accent-700"
+        className="rounded-2xl bg-accent-700 p-6 text-white"
+        style={{ animation: 'checkin-stub-in 380ms cubic-bezier(0.22,1,0.36,1) both' }}
       >
         <div className="flex flex-wrap items-center gap-4">
-          <IconBadge className="bg-accent-cyan/10">
-            <ChairIcon className="h-7 w-7" style={{ animation: 'checkin-bob 900ms ease-in-out 2', animationDelay: '380ms' }} />
+          <IconBadge className="bg-white/15">
+            <ChairIcon className="h-7 w-7 text-accent-cyan-light" style={{ animation: 'checkin-bob 900ms ease-in-out 2', animationDelay: '380ms' }} />
           </IconBadge>
           <div className="min-w-0 flex-1">
-            <p className="font-display text-lg font-bold text-ink-900">{guest.name} has no seat yet</p>
-            <p className="mt-0.5 text-sm text-accent-700/90">
+            <p className="font-display text-lg font-bold text-white">{guest.name} has no seat yet</p>
+            <p className="mt-0.5 text-sm text-white/80">
               Pick a seat below to let them straight through — this doesn't touch the seat map layout.
             </p>
           </div>
@@ -261,7 +264,7 @@ function NoSeatPicker({
   }, [assigning])
 
   if (!bucket || !seat) {
-    return <p className="mt-4 text-sm font-medium text-accent-700/90">No open seats left — check the seat map.</p>
+    return <p className="mt-4 text-sm font-medium text-white/90">No open seats left — check the seat map.</p>
   }
 
   function stepGroup(dir: 1 | -1) {
@@ -348,7 +351,11 @@ function ReadyCard({ guest, seatLabel, onConfirm }: { guest: Guest; seatLabel: s
   }, [confirming])
 
   return (
-    <div key={`ready-${guest.id}`} className="overflow-hidden rounded-2xl bg-accent-700 text-white">
+    <div
+      key={`ready-${guest.id}`}
+      className="overflow-hidden rounded-2xl bg-accent-700 text-white"
+      style={{ animation: 'checkin-stub-in 380ms cubic-bezier(0.22,1,0.36,1) both' }}
+    >
       <div className="flex flex-wrap items-center gap-4 p-6">
         <PersonBadge guest={guest} />
         <div className="min-w-0 flex-1">
@@ -480,7 +487,11 @@ function CheckedInCelebration({
   // instead of replacing that badge.
 
   return (
-    <div key={`checked-in-${guest.id}`} className="relative overflow-hidden rounded-2xl bg-status-confirmed text-white">
+    <div
+      key={`checked-in-${guest.id}`}
+      className="relative overflow-hidden rounded-2xl bg-status-confirmed text-white"
+      style={{ animation: 'checkin-stub-in 380ms cubic-bezier(0.22,1,0.36,1) both' }}
+    >
       <div className="flex flex-wrap items-center gap-4 p-6">
         <span className="relative flex h-16 w-16 shrink-0 items-center justify-center rounded-2xl bg-white/15" style={{ animation: 'checkin-pop 420ms cubic-bezier(0.34,1.56,0.64,1) both' }}>
           {confetti.map((c) => (

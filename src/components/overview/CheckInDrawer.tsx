@@ -183,32 +183,61 @@ export default function CheckInDrawer({ open, onClose, guests, seats, groups, ev
     await undoCheckIn(guest.id)
     onToast(`Check-in undone for ${guest.name}`)
     setResolution(classifyGuest({ ...guest, checkedInAt: null, checkedInBy: null }))
-  }  return (
+  }
+
+  return (
     <>
     <DrawerPanelPortal open={open} onClose={onClose} title="Scan a ticket" icon={QrCheckIcon}>
       <div className="flex flex-col gap-6">
-        <div>
+        {/* Full-bleed camera stage — negative margins cancel the drawer
+            body's own px-6 py-5 padding so this actually reaches the
+            drawer's edges, the way a real gate camera fills the screen
+            instead of sitting in a small inset square. */}
+        <div className="relative -mx-6 -mt-5 h-[58vh] max-h-[560px] min-h-[380px] overflow-hidden bg-ink-900 lg:h-[440px]">
           {cameraOpen ? (
-            <div className="flex flex-col gap-2">
+            <>
               <QrScanner active={!resolution} onDecode={handleDecode} />
               <button
                 type="button"
                 onClick={() => setCameraOpen(false)}
-                className="flex min-h-[44px] items-center justify-center gap-2 rounded-xl border border-black/10 bg-white/60 px-4 text-sm font-semibold text-ink-900 transition active:scale-[0.97] hover:bg-white"
+                className="absolute right-3 top-3 flex min-h-[36px] items-center gap-1.5 rounded-full border border-white/20 bg-ink-900/70 px-3 text-xs font-semibold text-white/90 backdrop-blur-sm transition active:scale-[0.97] hover:bg-ink-900/90"
               >
-                <CloseIcon className="h-4 w-4" /> Close camera, use search
+                <CloseIcon className="h-3.5 w-3.5" /> Use search
               </button>
-            </div>
+            </>
           ) : (
             <button
               type="button"
               onClick={() => setCameraOpen(true)}
-              className="flex aspect-square w-full flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-accent-700/30 bg-accent-700/5 text-accent-700 transition active:scale-[0.98] hover:bg-accent-700/10"
+              className="flex h-full w-full flex-col items-center justify-center gap-2 border-2 border-dashed border-accent-cyan-light/30 bg-ink-900 text-accent-cyan-light transition active:scale-[0.98] hover:bg-ink-800"
             >
               <QrCheckIcon className="h-9 w-9" />
               <span className="text-sm font-semibold">Reopen camera</span>
-              <span className="text-xs text-accent-700/70">or enter the invitation code below</span>
+              <span className="text-xs text-accent-cyan-light/70">or enter the invitation code below</span>
             </button>
+          )}
+
+          {/* Every outcome — success, already-in, no-seat, not-found — now
+              overlays the stage as a bottom sheet, the gate "accepting" or
+              "rejecting" whatever was just scanned, instead of appearing
+              in the scrollable list below it. Each card supplies its own
+              solid fill (see CheckInResultCard) so it reads clearly over
+              the camera feed. */}
+          {resolution && (
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 p-3">
+              <div className="pointer-events-auto">
+                <CheckInResultCard
+                  resolution={resolution}
+                  emptySeats={emptySeats}
+                  groups={groups}
+                  seatLabel={resolvedSeatLabel}
+                  onConfirm={handleConfirm}
+                  onAssignSeat={handleAssignSeat}
+                  onUndo={handleUndo}
+                  onPrintCard={setPrintGuest}
+                />
+              </div>
+            </div>
           )}
         </div>
 
@@ -261,33 +290,21 @@ export default function CheckInDrawer({ open, onClose, guests, seats, groups, ev
         )}
 
         {resolution && (
-          <div className="flex flex-col gap-3">
-            <CheckInResultCard
-              resolution={resolution}
-              emptySeats={emptySeats}
-              groups={groups}
-              seatLabel={resolvedSeatLabel}
-              onConfirm={handleConfirm}
-              onAssignSeat={handleAssignSeat}
-              onUndo={handleUndo}
-              onPrintCard={setPrintGuest}
-            />
-            {/* Same bordered-secondary treatment "Close camera, use search"
-                above uses — a different role from Button.tsx's own pill
-                variants (final Cancel/Submit), this is an in-flow toggle
-                within an active scan session, so it stays its own family
-                rather than being forced into a Button variant that doesn't
-                fit. min-h-[44px] to match this app's own touch-target
-                standard though — this used to be the one secondary button
-                in the whole app sitting at 48px instead. */}
-            <button
-              type="button"
-              onClick={handleReset}
-              className="flex min-h-[44px] items-center justify-center rounded-xl border border-black/10 bg-white/60 px-4 text-sm font-semibold text-ink-900 transition active:scale-[0.97] hover:bg-white"
-            >
-              Scan next guest
-            </button>
-          </div>
+          /* Same bordered-secondary treatment "Use search" above uses — a
+             different role from Button.tsx's own pill variants (final
+             Cancel/Submit), this is an in-flow toggle within an active scan
+             session, so it stays its own family rather than being forced
+             into a Button variant that doesn't fit. min-h-[44px] to match
+             this app's own touch-target standard though — this used to be
+             the one secondary button in the whole app sitting at 48px
+             instead. */
+          <button
+            type="button"
+            onClick={handleReset}
+            className="flex min-h-[44px] items-center justify-center rounded-xl border border-black/10 bg-white/60 px-4 text-sm font-semibold text-ink-900 transition active:scale-[0.97] hover:bg-white"
+          >
+            Scan next guest
+          </button>
         )}
       </div>
     </DrawerPanelPortal>
